@@ -107,6 +107,7 @@ class LiveStreamCoordinator(
     val permissionPreferences: String = "opencine.live-stream.permissions",
 ) : LiveStreamActions {
     private val presets: List<StreamServicePreset> = catalog.presets()
+    internal var beforeMicrophoneCapture: (() -> Unit)? = null
     private val mutableState = MutableStateFlow(LiveStreamState())
     val state: StateFlow<LiveStreamState> = mutableState.asStateFlow()
 
@@ -261,6 +262,7 @@ class LiveStreamCoordinator(
         }
         if (mic != null) {
             try {
+                beforeMicrophoneCapture?.invoke()
                 mic.start { pcm, frames -> stream.submitAudio(pcm, frames) }
             } catch (_: Exception) {
                 end(LiveStreamEnd.MicrophoneDenied)

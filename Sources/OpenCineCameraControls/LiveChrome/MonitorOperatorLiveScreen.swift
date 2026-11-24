@@ -90,10 +90,12 @@
         @ViewBuilder func lutPicker() -> LUTSheet
         /// Live streaming, when the app composes it: the Go live control over the picture.
         var liveStream: LiveStreamCoordinator? { get }
+        var liveVoiceControl: MonitorVoiceTool? { get }
     }
 
     extension MonitorLiveScreenHost {
         public var liveStream: LiveStreamCoordinator? { nil }
+        public var liveVoiceControl: MonitorVoiceTool? { nil }
     }
 
     /// The complete live operator screen over the app's camera session and native picture.
@@ -213,7 +215,7 @@
                     headTracking: capability.headTracking, watching: model.isWatchingFeed),
                 capture: MonitorOperatorLiveCaptureSource(confirmRecording: model.recordConfirmationEnabled,
                     busy: { model.session.controlBusy }, takePhoto: { model.session.takeLivePhoto() }),
-                zoom: zoomSource, focus: focusSource, assists: model.liveAssistSource,
+                zoom: zoomSource, focus: focusSource, assists: model.liveAssistSource, voice: model.liveVoiceControl,
                 portraitAspect: Bindable(model).portraitFeedAspect, orientation: orientationObserver.orientation,
                 controlNote: Bindable(model.session).controlNote,
                 headTracking: MonitorOperatorHeadTrackingSource(enabled: model.headTrackingEnabled,

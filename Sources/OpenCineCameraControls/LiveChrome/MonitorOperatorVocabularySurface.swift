@@ -103,7 +103,8 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
     public init(host: Host, layout: LiveMonitorLayout, interaction: MonitorOperatorInteraction,
         source: MonitorOperatorLivePresentation, capture: MonitorOperatorLiveCaptureSource,
         zoom: MonitorOperatorZoomPresentation, focus: MonitorOperatorFocusSource,
-        assists: MonitorOperatorLiveAssistSource, portraitAspect: Binding<PortraitFeedAspect>,
+        assists: MonitorOperatorLiveAssistSource, voice: MonitorVoiceTool? = nil,
+        portraitAspect: Binding<PortraitFeedAspect>,
         orientation: MonitorDeviceOrientation, controlNote: Binding<String?>,
         headTracking: MonitorOperatorHeadTrackingSource? = nil,
         readLevel: ((TimeInterval, Bool) -> MonitorLevelDisplay)? = nil,
@@ -158,7 +159,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                         + (host.cameraStatus.isPhoto || !host.controlCapabilities.liveAudioLevels.isShown ? [] : [.audioMeters])
                 }, rendered: { nil }, signalOptions: .init(),
                 usage: Binding(get: { host.assistToolUsage }, set: { host.assistToolUsage = $0 }),
-                usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: host.assist.toggle),
+                usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: host.assist.toggle, voice: voice),
             views: accessories.views, portraitAspect: portraitAspect, picture: picture,
             cameraPanel: { key, popup in
                 let camera = host.control.snapshot?.session, epoch = host.control.snapshot?.epoch

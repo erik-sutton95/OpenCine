@@ -194,6 +194,14 @@ case ShellModel.Route.monitor
 case ShellModel.Route.pair
 case StationNetworkSetupContext.camera(OpenCineCore.SavedCamera)
 case StationNetworkSetupContext.multiview
+case VoiceCommand.Lens.tele
+case VoiceCommand.Lens.wide
+case VoiceCommand.nextPreset
+case VoiceCommand.preset(Swift.Int)
+case VoiceCommand.previousPreset
+case VoiceCommand.start
+case VoiceCommand.stop
+case VoiceCommand.switchLens
 class CameraSettingsPresetStore: Observable, Sendable
 class CameraSettingsPresetsModel: Observable, Sendable
 class CamerasModel: Observable, Sendable
@@ -259,6 +267,7 @@ class ReliabilityReportingRedirectGuard: ObjectiveC.NSObject, CVarArg, CustomDeb
 class ReliabilityReportingURLProtocol: Foundation.URLProtocol, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class SavedCamerasStore: Sendable
 class ShellModel: Observable, Sendable
+class VoiceCommandPermit: Sendable
 enum BodyRecordsV0.Dates: Equatable, Hashable, Sendable
 enum CameraSettingsPresetCopy
 enum CameraSettingsPresetScope
@@ -344,6 +353,8 @@ enum ShellModel.Monitor.Ownership
 enum ShellModel.Route: Equatable, Hashable, Sendable
 enum StationNetworkSetupContext: Sendable
 enum StationNetworkSetupRules
+enum VoiceCommand.Lens: Equatable, Hashable, Sendable
+enum VoiceCommand: Equatable, Sendable
 extension Foundation.URLSessionTask
 extension MonitorPresentation.Center
 extension MonitorPresentation.MonitorAssistSelection
@@ -472,6 +483,7 @@ func MonitorControlModel.commit(_: OpenCineCore.SettingValue, from: MonitorContr
 func MonitorControlModel.commitRecord(from: MonitorControlModel.RecordEditor) -> Swift.Bool
 func MonitorControlModel.commitRecord(from: MonitorControlModel.RecordEditor, admission: OpenCineCore.CommandDispatchAdmission) -> Swift.Bool
 func MonitorControlModel.edit(_: OpenCineCore.SettingKey) -> MonitorControlModel.Editor?
+func MonitorControlModel.executeVoiceCommand(_: VoiceCommand, target: VoiceControlTarget, presets: CameraSettingsPresetsModel, admission: OpenCineCore.CommandDispatchAdmission, switchLens: (() async -> Swift.String)?) async -> Swift.String
 func MonitorControlModel.isCurrent(_: MonitorControlModel.Editor) -> Swift.Bool
 func MonitorControlModel.liveStatusPresentation(elapsedSeconds: Swift.Int?) -> (status: MonitorPresentation.MonitorStatusPresentation, clock: () -> Swift.String?)
 func MonitorControlModel.recall(_: OpenCineCore.CameraSettingsPreset, admission: OpenCineCore.CommandDispatchAdmission?) async -> OpenCineCore.CameraSettingsPresetRecall
@@ -959,6 +971,10 @@ func View.multiviewStageServices(_: MultiviewStageServices) -> some SwiftUI.View
 func View.multiviewStageState(_: MultiviewStageState) -> some SwiftUI.View
 func View.multiviewStageVisible(_: Swift.Bool) -> some SwiftUI.View
 func View.operatorConsentPresenter(_: OperatorConsent) -> some SwiftUI.View
+func VoiceCommand.allows(_: OpenCineCore.CameraSnapshot) -> Swift.Bool
+func VoiceCommand.isConfirmation(_: Swift.String) -> Swift.Bool
+func VoiceCommandPermit.revoke() -> ()
+func VoiceUtteranceGate.accept(_: Swift.String, start: Swift.Double, end: Swift.Double, now: Swift.Double) -> VoiceCommand?
 init AddSetupChooser(title: Swift.String, detail: Swift.String, options: [AddSetupOption], footer: Swift.String?, identifierPrefix: Swift.String, notice: AddSetupNotice?)
 init AddSetupChooserView(chooser: AddSetupChooser, onSelect: (AddSetupOption) -> Swift.Void, horizontal: Swift.Bool, onNoticeAction: (Swift.String) -> Swift.Void)
 init AddSetupFlow(chooser: AddSetupChooser, onSelect: (AddSetupOption) -> Swift.Void, destination: ((AddSetupOption) -> SwiftUI.AnyView)?, initialSelection: Swift.String?, onDismiss: () -> Swift.Void, onNoticeAction: (Swift.String) -> Swift.Void, onCancel: () -> Swift.Void, cancelTitle: Swift.String?)
@@ -1196,6 +1212,9 @@ init ShellModel(cameras: CamerasModel, control: MonitorControlModel)
 init StationNetworkBrand(appName: Swift.String, cameraFamily: Swift.String, cameraNetworkPrefix: Swift.String)
 init StationSetupRoute(_: OpenCineCore.RouteKind, actionTitle: Swift.String?, enabled: Swift.Bool)
 init StoredData(read: () -> Foundation.Data?, write: (Foundation.Data) -> Swift.Void)
+init VoiceCommandPermit(while: () -> Swift.Bool)
+init VoiceControlTarget(_: OpenCineCore.CameraSnapshot)
+init VoiceUtteranceGate()
 let AddSetupFlow.initialSelection: Swift.String?
 let CameraSettingsPresetsModel.store: CameraSettingsPresetStore
 let CamerasModel.consent: OperatorConsent
@@ -1623,6 +1642,10 @@ let ShellModel.Monitor.id: Foundation.UUID
 let ShellModel.Monitor.ownership: ShellModel.Monitor.Ownership
 let ShellModel.cameras: CamerasModel
 let ShellModel.control: MonitorControlModel
+let VoiceControlTarget.epoch: OpenCineCore.ControlEpoch
+let VoiceControlTarget.mode: OpenCineCore.CaptureMode
+let VoiceControlTarget.recording: OpenCineCore.RecordingState?
+let VoiceControlTarget.session: OpenCineCore.CameraSessionID
 protocol MonitorLookProvider<Self : AnyObject, Self.Selection : Swift.Equatable>
 protocol MonitorMediaCatalogByteStore<Self : Swift.Sendable>: Sendable
 protocol MonitorMediaCatalogCodec<Self : Swift.Sendable, Self.Payload : Swift.Sendable>: Sendable
@@ -1765,6 +1788,9 @@ static func StationNetworkSetupRules.phoneNetworks(_: [Swift.String]) -> [Swift.
 static func StationNetworkSetupRules.security(of: Swift.String, saved: [OpenCineCore.StationNetwork], current: Swift.Bool?) -> Swift.Bool?
 static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext, routes: [StationSetupRoute], notice: AddSetupNotice?) -> AddSetupChooser
 static func StoredData.userDefaults(_: Foundation.UserDefaults, key: Swift.String) -> StoredData
+static func VoiceCommand.isWakeWord(_: Swift.String) -> Swift.Bool
+static func VoiceCommand.parse(_: Swift.String) -> VoiceCommand?
+static func VoiceCommand.tokens(_: Swift.String) -> [Swift.Substring]
 static let CameraSettingsPresetCopy.connectFirst: Swift.String
 static let CameraSettingsPresetCopy.empty: Swift.String
 static let CameraSettingsPresetCopy.help: Swift.String
@@ -2037,6 +2063,8 @@ struct ShellModel.Monitor: Identifiable
 struct StationNetworkBrand: Equatable, Sendable
 struct StationSetupRoute: Equatable, Sendable
 struct StoredData
+struct VoiceControlTarget: Equatable, Sendable
+struct VoiceUtteranceGate: Sendable
 typealias MonitorDeliveryPreparationModel.Request = MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>
 typealias MonitorMediaPictureLoaders.Load = (MonitorMediaPictureRequest<Payload>) async -> Picture?
 typealias MultiviewCoordinator.Camera = Link.Camera
@@ -2285,6 +2313,7 @@ var MonitorControlModel.snapshot: OpenCineCore.CameraSnapshot?
 var MonitorControlModel.timecode: OpenCineCore.ObservedValue<OpenCineCore.CameraTimecode>
 var MonitorControlModel.timecodeReading: OpenCineCore.ObservedValue<OpenCineCore.CameraTimecodeReading>
 var MonitorControlModel.timecodeTemplate: Swift.String?
+var MonitorControlModel.voiceTarget: VoiceControlTarget?
 var MonitorCoverPage.body: some SwiftUI.View
 var MonitorDeliveryBatchProgress.clipFraction: Swift.Double
 var MonitorDeliveryBatchProgress.clipIndex: Swift.Int
@@ -2951,3 +2980,8 @@ var StationSetupRoute.enabled: Swift.Bool
 var StationSetupRoute.kind: OpenCineCore.RouteKind
 var StoredData.read: () -> Foundation.Data?
 var StoredData.write: (Foundation.Data) -> Swift.Void
+var VoiceCommand.Lens.confirmation: Swift.String
+var VoiceCommand.Lens.label: Swift.String
+var VoiceCommand.changesSettings: Swift.Bool
+var VoiceCommand.recordingConfirmation: Swift.String?
+var VoiceCommandPermit.isCurrent: Swift.Bool

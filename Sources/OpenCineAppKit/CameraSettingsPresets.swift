@@ -148,6 +148,7 @@ public final class CameraSettingsPresetsModel {
     @ObservationIgnored public let store: CameraSettingsPresetStore
     @ObservationIgnored private let shell: ShellModel
     @ObservationIgnored private let admission: @MainActor () -> CommandDispatchAdmission?
+    @ObservationIgnored private var lastRecall: (session: CameraSessionID, epoch: ControlEpoch, id: String)?
     /// A recall is in flight.
     public private(set) var recalling = false
     /// The last save or recall result for the operator, `nil` until there is one.
@@ -174,7 +175,12 @@ public final class CameraSettingsPresetsModel {
     public var canRecall: Bool { scope != nil && shell.control.snapshot?.connection == .ready && !recalling }
 
     /// The name a new preset gets when the operator leaves it empty.
-    public var suggestedName: String { "Preset \(presets.count + 1)" }
+    public var suggestedName: String {
+        let names = Set(presets.map { $0.name.lowercased() })
+        var number = 1
+        while names.contains("preset \(number)") { number += 1 }
+        return "Preset \(number)"
+    }
 
     /// Saves the camera's current values under `name` (trimmed; empty takes `suggestedName`).
     @discardableResult public func save(name: String) -> CameraSettingsPreset? {
@@ -197,11 +203,42 @@ public final class CameraSettingsPresetsModel {
 
     /// Recalls `preset` on the connected camera and reports the result in `message`.
     @discardableResult public func recall(_ preset: CameraSettingsPreset) async -> CameraSettingsPresetRecall? {
+        await recall(preset, admission: nil)
+    }
+
+    func recallAdjacent(next: Bool, admission: CommandDispatchAdmission) async -> String {
+        let list = presets
+        guard !list.isEmpty else { return CameraSettingsPresetCopy.empty }
+        let index: Int
+        if let lastRecall, let snapshot = shell.control.snapshot,
+            lastRecall.session == snapshot.session, lastRecall.epoch == snapshot.epoch,
+            let previous = list.firstIndex(where: { $0.id == lastRecall.id }) {
+            index = previous + (next ? 1 : -1)
+        } else {
+            index = next ? list.startIndex : list.count - 1
+        }
+        guard list.indices.contains(index) else {
+            return next ? "Already at the last preset." : "Already at the first preset."
+        }
+        guard let result = await recall(list[index], admission: admission) else {
+            return "Preset recall is unavailable."
+        }
+        return CameraSettingsPresetCopy.result(result)
+    }
+
+    @discardableResult func recall(
+        _ preset: CameraSettingsPreset, admission: CommandDispatchAdmission?
+    ) async -> CameraSettingsPresetRecall? {
         guard !recalling else { return nil }
         guard canRecall else { message = CameraSettingsPresetCopy.connectFirst; return nil }
+        let snapshot = shell.control.snapshot
         recalling = true
         message = "Recalling \(preset.name)..."
-        let result = await shell.control.recall(preset, admission: admission())
+        let result = await shell.control.recall(preset, admission: admission ?? self.admission())
+        if let snapshot, result.failed.isEmpty,
+            result.entries.contains(where: { $0.outcome == .applied || $0.outcome == .unchanged }) {
+            lastRecall = (snapshot.session, snapshot.epoch, preset.id)
+        }
         recalling = false
         message = CameraSettingsPresetCopy.result(result)
         return result

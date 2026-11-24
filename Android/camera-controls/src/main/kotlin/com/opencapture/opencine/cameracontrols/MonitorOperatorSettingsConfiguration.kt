@@ -337,6 +337,7 @@ public class MonitorOperatorSettingsConfiguration(
     public val cameraPresets: com.opencapture.opencine.appkit.CameraSettingsPresetsModel? = null,
     /** Live streaming, when the app composes it: the card follows feed sharing on the Sharing tab. */
     public val liveStream: MonitorSettingsLiveStreamSource? = null,
+    public val voicePreferences: com.opencapture.opencine.appkit.MonitorVoicePreferences? = null,
 ) {
     /** Explicit tab lists keep their order; the default includes each supplied optional domain. */
     public val tabs: List<MonitorSettingsTab> =

@@ -62,6 +62,7 @@ public final class MonitorControlModel {
     /// re-evaluated per frame; the clock readout follows `timecodeReading` on its own.
     public private(set) var timecodeTemplate: String?
     @ObservationIgnored private var latest: CameraSnapshot?
+    public private(set) var voiceTarget: VoiceControlTarget?
     /// Operator targets whose operations are unfinished.
     public private(set) var pending: [SettingKey: SettingValue] = [:]
     /// A record start or stop is in flight.
@@ -219,6 +220,7 @@ public final class MonitorControlModel {
         rateChangeWake = nil
         if frameRateSettling { frameRateSettling = false }
         session = nil
+        if voiceTarget != nil { voiceTarget = nil }
         withMutation(keyPath: \.snapshot) { latest = nil }
         if timecodeReading != .unknown { timecodeReading = .unknown }
         if timecodeTemplate != nil { timecodeTemplate = nil }
@@ -257,6 +259,8 @@ public final class MonitorControlModel {
     }
 
     private func apply(_ snapshot: CameraSnapshot) {
+        let target = VoiceControlTarget(snapshot)
+        if voiceTarget != target { voiceTarget = target }
         if case .frameRate(let next)? = snapshot.value(of: .frameRate).value,
             case .frameRate(let previous)? = latest?.value(of: .frameRate).value, previous != next,
             latest?.session == snapshot.session {
@@ -558,6 +562,13 @@ public final class MonitorControlModel {
         -> CommandReceipt?
     {
         await beginRecord(start: start, approved: nil, admission: admission)?.value
+    }
+
+    func commitRecordAndWait(from editor: RecordEditor, admission: CommandDispatchAdmission)
+        async -> CommandReceipt?
+    {
+        guard canCommitRecord(from: editor) else { return nil }
+        return await beginRecord(start: !editor.recording, approved: editor, admission: admission)?.value
     }
 
     @discardableResult private func beginRecord(

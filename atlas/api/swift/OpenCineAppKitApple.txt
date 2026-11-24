@@ -19,6 +19,10 @@ case LiveStreamCameraRelayEvent.listenFailed
 case LiveStreamCameraRelayEvent.lost
 case MonitorDeliveryPhotosSaver.SaveError.permissionDenied
 case MonitorDeliveryPhotosSaver.SaveError.saveFailed(Swift.String)
+case MonitorVoiceAction.lens
+case MonitorVoiceAction.preset
+case MonitorVoiceAction.start
+case MonitorVoiceAction.stop
 case StationNetworkSetupView.Page.choose
 case StationNetworkSetupView.Page.hotspot
 case StationNetworkSetupView.Page.networks
@@ -47,6 +51,8 @@ class MonitorPlaybackLayerView.Coordinator: Sendable
 class MonitorRemoteShutter: Sendable
 class MonitorScreenWakeOwner: Sendable
 class MonitorVideoBackdropRenderer: Sendable
+class MonitorVoiceControl: Observable, Sendable
+class MonitorVoicePreferences: Observable, Sendable
 class MonitorWatcherSource<Decoder where Decoder : OpenCineApple.MonitorLiveVideoRuntime>: Observable, Sendable
 enum DiagnosticCenterRuntime.ReportWrite: Equatable
 enum DiagnosticCenterRuntime.ShareOutcome: Equatable
@@ -54,6 +60,7 @@ enum LiveStreamCameraError: Equatable, Error, Sendable
 enum LiveStreamCameraRelayEvent: Equatable, Hashable, Sendable
 enum MonitorDeliveryPhotosSaver.SaveError: Error, LocalizedError, Sendable
 enum MonitorDeliveryPhotosSaver: Sendable
+enum MonitorVoiceAction: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable
 enum StationNetworkSetupView.Page: Equatable, Hashable
 enum WatcherJoinStatus: Equatable, Sendable
 extension Foundation.Name
@@ -160,6 +167,14 @@ func MonitorVideoBackdropRenderer.activate(_: Foundation.UUID) -> ()
 func MonitorVideoBackdropRenderer.deactivate(_: Foundation.UUID) -> ()
 func MonitorVideoBackdropRenderer.isCurrent(_: MonitorVideoBackdropRenderer.Result) -> Swift.Bool
 func MonitorVideoBackdropRenderer.render(owner: Foundation.UUID, canvasSize: CoreFoundation.CGSize, surroundRGB: Swift.UInt32, prepare: () -> [MonitorVideoBackdropSource]) async -> MonitorVideoBackdropRenderer.Result?
+func MonitorVoiceControl.disarm() -> ()
+func MonitorVoiceControl.toggle(target: OpenCineAppKit.VoiceControlTarget, execute: MonitorVoiceControl.Execute) -> ()
+func MonitorVoiceControl.toggle(target: OpenCineAppKit.VoiceControlTarget, supportsLens: Swift.Bool, execute: MonitorVoiceControl.Execute) -> ()
+func MonitorVoicePreferences.allows(_: OpenCineAppKit.VoiceCommand, supportsLens: Swift.Bool) -> Swift.Bool
+func MonitorVoicePreferences.availableActions(supportsLens: Swift.Bool) -> [MonitorVoiceAction]
+func MonitorVoicePreferences.isEnabled(_: MonitorVoiceAction) -> Swift.Bool
+func MonitorVoicePreferences.setEnabled(_: Swift.Bool, for: MonitorVoiceAction) -> ()
+func MonitorVoiceTool.toggle() -> ()
 func MonitorWatcherSource.join(endpoint: Network.NWEndpoint, hostName: Swift.String, passcode: Swift.String, watcherID: Swift.String, deviceName: Swift.String)<Decoder where Decoder : OpenCineApple.MonitorLiveVideoRuntime> -> ()
 func MonitorWatcherSource.leave()<Decoder where Decoder : OpenCineApple.MonitorLiveVideoRuntime> -> ()
 func MonitorWatcherSource.releaseControl()<Decoder where Decoder : OpenCineApple.MonitorLiveVideoRuntime> -> ()
@@ -227,6 +242,11 @@ init MonitorRemoteShutter(subsystem: Swift.String, category: Swift.String)
 init MonitorScreenWakeOwner(apply: (Swift.Bool) -> Swift.Void)
 init MonitorVideoBackdropConfiguration(source: Swift.ObjectIdentifier, generation: Swift.Int, effects: OpenCineMedia.MonitorFrameEffects, geometry: [CoreGraphics.CGFloat])
 init MonitorVideoBackdropRenderer(lookCurves: [OpenCineMedia.MonitorTransfer : [Swift.Double]], cacheEligibility: OpenCineApple.MonitorVideoBackdropRenderer.CacheEligibility, externalLookState: OpenCineApple.MonitorVideoBackdropRenderer.LookState?, clock: () -> Swift.UInt64, minimumInterval: () -> Swift.Double, operation: MonitorVideoBackdropRenderer.Operation?)
+init MonitorVoiceButton(control: MonitorVoiceControl, target: OpenCineAppKit.VoiceControlTarget?, execute: MonitorVoiceControl.Execute)
+init MonitorVoiceButton(control: MonitorVoiceControl, target: OpenCineAppKit.VoiceControlTarget?, supportsLens: Swift.Bool, execute: MonitorVoiceControl.Execute)
+init MonitorVoiceControl()
+init MonitorVoicePreferences(storage: Foundation.UserDefaults)
+init MonitorVoiceTool(control: MonitorVoiceControl, target: OpenCineAppKit.VoiceControlTarget?, supportsLens: Swift.Bool, execute: MonitorVoiceControl.Execute)
 init MonitorWatcherSource(decoder: Decoder, samples: OpenCineApple.LiveFrameSampleBus, versionMismatchReason: Swift.String, journal: (Swift.String) -> Swift.Void, commandWire: ((Foundation.Data) -> Swift.Void)?, clock: OpenCineApple.MonitorHostClock?)<Decoder where Decoder : OpenCineApple.MonitorLiveVideoRuntime>
 init MultiviewCameraSettingsPanel(coordinator: OpenCineAppKit.MultiviewCoordinator<Link>, host: Host, initialSlot: Swift.Int, viewport: CoreFoundation.CGSize, safeArea: SwiftUI.EdgeInsets, close: () -> Swift.Void)<Link, Host where Link : OpenCineCore.MultiviewMemberLink, Host : MultiviewScreenHost, Link.Camera : Swift.Sendable>
 init MultiviewScreen(coordinator: OpenCineAppKit.MultiviewCoordinator<Link>, host: Host, startsSession: Swift.Bool)<Link, Host where Link : OpenCineCore.MultiviewMemberLink, Host : MultiviewScreenHost, Link.Camera : Swift.Sendable>
@@ -260,6 +280,8 @@ let MonitorLiveVideoView.decoder: App.Decoder
 let MonitorRemoteShutter.log: os.Logger
 let MonitorVideoBackdropRenderer.Result.isUnchanged: Swift.Bool
 let MonitorVideoBackdropRenderer.Result.snapshot: MonitorUI.MonitorBackdropSnapshot?
+let MonitorVoiceControl.preferences: MonitorVoicePreferences
+let MonitorVoiceTool.control: MonitorVoiceControl
 let MonitorWatcherSource.decoder: Decoder
 let MonitorWatcherSource.samples: OpenCineApple.LiveFrameSampleBus
 let WatcherFeedRow.cameraName: Swift.String?
@@ -300,6 +322,7 @@ static var MonitorLivePictureApp.feedUpscaler: OpenCineApple.MonitorUpscalerPref
 static var MonitorLivePictureApp.hdrDisplay: LiveHDRDisplay
 static var MonitorLivePictureApp.logSubsystem: Swift.String
 static var MonitorLivePictureApp.presentObserver: (() -> Swift.Void)?
+static var MonitorVoiceControl.supported: Swift.Bool
 struct DiagnosticCamera: Equatable, Sendable
 struct DiagnosticCenterRuntime.Host
 struct HDRChromeHost: Sendable, UIViewRepresentable, View
@@ -320,6 +343,8 @@ struct MonitorLiveVideoView<App where App : MonitorLivePictureApp>: Sendable, Vi
 struct MonitorPlaybackLayerView: Sendable, UIViewRepresentable, View
 struct MonitorVideoBackdropConfiguration: Equatable
 struct MonitorVideoBackdropRenderer.Result
+struct MonitorVoiceButton: Sendable, View
+struct MonitorVoiceTool: Sendable
 struct MultiviewCameraSettingsPanel<Link, Host where Link : OpenCineCore.MultiviewMemberLink, Host : MultiviewScreenHost, Link.Camera : Swift.Sendable>: Sendable, View
 struct MultiviewScreen<Link, Host where Link : OpenCineCore.MultiviewMemberLink, Host : MultiviewScreenHost, Link.Camera : Swift.Sendable>: Sendable, View
 struct StationNetworkServices
@@ -330,6 +355,7 @@ typealias MonitorDeliveryCoordinator.Lifetime = OpenCineAppKit.MonitorDeliveryMo
 typealias MonitorDeliveryCoordinator.Outcome = OpenCineAppKit.MonitorDeliveryBatchOutcome<Foundation.URL>
 typealias MonitorVideoBackdropRenderer.Operation = (CoreFoundation.CGSize, [MonitorVideoBackdropSource]) -> MonitorUI.MonitorBackdropSnapshot?
 typealias MonitorVideoBackdropSource = OpenCineApple.MonitorVideoBackdropSource
+typealias MonitorVoiceControl.Execute = (OpenCineAppKit.VoiceCommand, OpenCineAppKit.VoiceCommandPermit, OpenCineAppKit.VoiceControlTarget) async -> Swift.String
 typealias StationNetworkSetupView.Context = OpenCineAppKit.StationNetworkSetupContext
 var DiagnosticCamera.family: Swift.String
 var DiagnosticCamera.model: Swift.String
@@ -433,6 +459,15 @@ var MonitorVideoBackdropConfiguration.effects: OpenCineMedia.MonitorFrameEffects
 var MonitorVideoBackdropConfiguration.generation: Swift.Int
 var MonitorVideoBackdropConfiguration.geometry: [CoreGraphics.CGFloat]
 var MonitorVideoBackdropConfiguration.source: Swift.ObjectIdentifier
+var MonitorVoiceAction.id: Swift.String
+var MonitorVoiceButton.body: some SwiftUI.View
+var MonitorVoiceControl.armed: Swift.Bool
+var MonitorVoiceControl.listening: Swift.Bool
+var MonitorVoiceControl.message: Swift.String?
+var MonitorVoiceControl.recognizedPhrase: Swift.String?
+var MonitorVoiceTool.canToggle: Swift.Bool
+var MonitorVoiceTool.feedback: some SwiftUI.View
+var MonitorVoiceTool.isAvailable: Swift.Bool
 var MonitorWatcherSource.actionRevision: Swift.UInt64
 var MonitorWatcherSource.canControl: Swift.Bool
 var MonitorWatcherSource.controlRequested: Swift.Bool

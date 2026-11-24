@@ -1938,6 +1938,7 @@ public final class com/opencapture/opencine/dji/PocketCameraSession : com/openca
 	public final fun getGimbalProgram ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getGimbalRamp ()Lcom/opencapture/opencine/vocabulary/GimbalRamp;
 	public final fun getGimbalSpeed ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getHasDualOpticalLenses ()Z
 	public final fun getHasGimbal ()Z
 	public final fun getHasVideoFormat ()Z
 	public final fun getHoldsMonitor ()Z
@@ -1967,6 +1968,7 @@ public final class com/opencapture/opencine/dji/PocketCameraSession : com/openca
 	public final fun getSupportsZoom ()Z
 	public final fun getTrackingHud ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getVideoPackets ()I
+	public final fun getVoiceOpticalLens ()Lcom/opencapture/opencine/dji/PocketCameraSession$OpticalLens;
 	public final fun getWantsFaceDetect ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getZoomColorHopPending ()Z
 	public final fun getZoomDialReadout ()Lkotlinx/coroutines/flow/StateFlow;
@@ -2106,6 +2108,14 @@ public final class com/opencapture/opencine/dji/PocketCameraSession : com/openca
 }
 
 public final class com/opencapture/opencine/dji/PocketCameraSession$Companion {
+}
+
+public final class com/opencapture/opencine/dji/PocketCameraSession$OpticalLens : java/lang/Enum {
+	public static final field TELE Lcom/opencapture/opencine/dji/PocketCameraSession$OpticalLens;
+	public static final field WIDE Lcom/opencapture/opencine/dji/PocketCameraSession$OpticalLens;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/PocketCameraSession$OpticalLens;
+	public static fun values ()[Lcom/opencapture/opencine/dji/PocketCameraSession$OpticalLens;
 }
 
 public abstract interface class com/opencapture/opencine/dji/PocketControlPort {

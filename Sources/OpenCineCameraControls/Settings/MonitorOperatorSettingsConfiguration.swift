@@ -448,7 +448,7 @@ enum MonitorSettingsRow: String, Hashable, Sendable {
     case linkHealth, connection, processing, savedCameras, sourceGroups
     case sharingUnavailable, sharing, watchers, watchFeed, liveStream
     case assistTools, assistPanels, exposureMeter, look
-    case cameraPresets, gyro, safety, input, gimbal, joystick, controller
+    case cameraPresets, voiceControl, gyro, safety, input, gimbal, joystick, controller
     case hdrPanel, displaySections
     case gyroLogs, account, cache
     case support, diagnosticOptions, projectLegal, information
@@ -476,6 +476,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     let information: MonitorSettingsAppInformation?
     /// The connected camera's exposure and white balance presets, first on the Controls tab.
     private(set) var cameraPresets: CameraSettingsPresetsModel?
+    private(set) var voiceControl: (preferences: MonitorVoicePreferences, supportsLens: Bool)?
     /// Live streaming, last on the Sharing tab.
     private(set) var liveStream: LiveStreamCoordinator?
 
@@ -485,6 +486,12 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     public func withCameraPresets(_ presets: CameraSettingsPresetsModel?) -> Self {
         var copy = self
         copy.cameraPresets = presets
+        return copy
+    }
+
+    public func withVoiceControl(_ preferences: MonitorVoicePreferences?, supportsLens: Bool = false) -> Self {
+        var copy = self
+        copy.voiceControl = preferences.map { ($0, supportsLens) }
         return copy
     }
 
@@ -609,7 +616,8 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         case .controls:
             let motion = controls.motion
             let input = controls.input.map { $0.remoteShutter != nil || $0.autoRotate != nil } ?? false
-            return (cameraPresets == nil ? [] : [.cameraPresets]) + (gyro == nil ? [] : [.gyro]) + [.safety]
+            return (cameraPresets == nil ? [] : [.cameraPresets]) + (voiceControl == nil ? [] : [.voiceControl])
+                + (gyro == nil ? [] : [.gyro]) + [.safety]
                 + (input ? [.input] : [])
                 + (motion?.sensitivity == nil ? [] : [.gimbal]) + (motion?.joystick == nil ? [] : [.joystick])
                 + (motion?.controller == nil ? [] : [.controller])

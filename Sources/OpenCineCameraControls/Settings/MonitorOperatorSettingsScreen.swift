@@ -184,7 +184,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         case .liveStream:
             if let stream = source.liveStream { LiveStreamSettingsSection(coordinator: stream, feedback: source.feedback) }
         case .assistTools, .assistPanels, .exposureMeter, .look: assistRow(row, source)
-        case .cameraPresets, .gyro, .safety, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
+        case .cameraPresets, .voiceControl, .gyro, .safety, .input, .gimbal, .joystick, .controller:
+            controlsRow(row, source)
         case .hdrPanel, .displaySections, .gyroLogs, .account, .cache: displayStorageRow(row, source)
         case .support, .diagnosticOptions, .projectLegal, .information: systemRow(row, source)
         }
@@ -234,6 +235,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         switch row {
         case .cameraPresets:
             if let presets = source.cameraPresets { MonitorSettingsCameraPresetsCard(model: presets, feedback: source.feedback) }
+        case .voiceControl:
+            if let voice = source.voiceControl {
+                MonitorSettingsVoiceCard(preferences: voice.preferences, supportsLens: voice.supportsLens,
+                    feedback: source.feedback)
+            }
         case .gyro:
             if let gyro = source.gyro { MonitorSettingsGyroCard(gyro: gyro, feedback: source.feedback) }
         case .safety:

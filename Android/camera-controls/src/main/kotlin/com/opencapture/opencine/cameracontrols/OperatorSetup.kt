@@ -230,6 +230,7 @@ class OperatorSetupApp(
     val cacheSource: (@Composable (Context) -> com.opencapture.opencine.appkit.MonitorSettingsCacheSource)? = null,
     /** The connected camera's exposure and white balance presets on the Controls tab; null leaves the card out. */
     val cameraPresets: com.opencapture.opencine.appkit.CameraSettingsPresetsModel? = null,
+    val voicePreferences: com.opencapture.opencine.appkit.MonitorVoicePreferences? = null,
     /**
      * Live streaming's card for the Sharing tab, read each composition (it follows the stream's
      * state); null, or a slot returning null, leaves it out.
@@ -402,6 +403,7 @@ private fun operatorSetupConfiguration(
         information = MonitorSettingsInformationSource(information.theme, information.protocol, information.version,
             information.themeHelp, information.protocolHelp, information.versionHelp),
         cameraPresets = app.cameraPresets,
+        voicePreferences = app.voicePreferences,
     )
 }
 

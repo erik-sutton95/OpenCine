@@ -373,6 +373,7 @@ class DatalinkDriver(
     fun open(identityOnly: Boolean = false, afterHandshake: (() -> Unit)? = null) {
         check(DjiNative.isAvailable) { "Swift core is not loaded" }
         check(!closed.get()) { "datalink closed" }
+        commandOwner.replaceSource()
         val lifetime = DatalinkOpenLoop(SystemClock::elapsedRealtime,
             LiveViewEnablePolicy.handshakeOpenTimeoutMs(), closed::get)
         onTxBlocking { discardUdp(keepPoke = true) }
@@ -703,14 +704,20 @@ class DatalinkDriver(
 
     fun clearNativeCurveTargets() = nativeCurveDispatch.clear()
 
-    private fun enqueueTx(body: () -> Unit) {
-        if (closed.get() || sendExecutor.isShutdown) return
+    private fun enqueueTx(body: () -> Unit) = enqueueTx({}, body)
+
+    private fun enqueueTx(onDropped: () -> Unit, body: () -> Unit) {
+        if (closed.get() || sendExecutor.isShutdown) {
+            onDropped()
+            return
+        }
         val epoch = nativeFeedbackEpoch.get()
         runCatching {
             sendExecutor.execute {
                 if (!closed.get() && epoch == nativeFeedbackEpoch.get()) body()
+                else onDropped()
             }
-        }
+        }.onFailure { onDropped() }
     }
 
     private fun sendDumlLocked(
@@ -793,7 +800,12 @@ class DatalinkDriver(
         },
     )
 
-    fun close() = closeSequence.close()
+    internal val commandOwner = DjiCommandOwner()
+
+    fun close() {
+        commandOwner.retire()
+        closeSequence.close()
+    }
 
     private fun resetHandshakeSession() {
         sessionId = Random.nextInt(0x1000, 0xFFFE)
@@ -976,19 +988,29 @@ class DatalinkDriver(
         }
     }
 
-    fun sendCommand(kind: Int, extra: String? = null) {
-        if (closed.get()) return
-        onSendThread { sendCommandLocked(kind, extra) }
+    fun sendCommand(kind: Int, extra: String? = null) = sendCommand(kind, extra, null)
+
+    internal fun sendCommand(
+        kind: Int,
+        extra: String?,
+        admission: DjiCommandAdmission?,
+        onDispatched: ((Boolean) -> Unit)? = null,
+    ) {
+        onSendThread(onDropped = { onDispatched?.invoke(false) }) {
+            val dispatched = sendCommandLocked(kind, extra, admission)
+            onDispatched?.invoke(dispatched)
+        }
     }
 
-    private fun sendCommandLocked(kind: Int, extra: String?) {
+    private fun sendCommandLocked(kind: Int, extra: String?, admission: DjiCommandAdmission? = null): Boolean =
         synchronized(sendLock) {
-            if (socket == null) return
+            if (socket == null || admission?.admits(commandOwner) == false) return@synchronized false
             val frameBytes = DjiNative.command(kind, dumlSeq, extra)
-            val routing = DjiNative.routingHeader(udpSeq, (cmdCounter + 1) and 0xFF, false) ?: return
+            val routing = DjiNative.routingHeader(udpSeq, (cmdCounter + 1) and 0xFF, false)
+                ?: return@synchronized false
             val header =
                 DjiNative.transportHeader(0x05, routing.size + frameBytes.size, sessionId, udpSeq)
-                    ?: return
+                    ?: return@synchronized false
             cmdCounter = (cmdCounter + 1) and 0xFF
             val sendEpoch = nativeFeedbackEpoch.get()
             val dispatched = writeOnNetwork(header + routing + frameBytes)
@@ -998,8 +1020,8 @@ class DatalinkDriver(
             }
             dumlSeq = (dumlSeq + 1) and 0xFFFF
             udpSeq = (udpSeq + 8) and 0xFFFF
+            dispatched
         }
-    }
 
     /** Latest `0x04/0x01` axes. ACK ticks request one coalesced TX read of this state. */
     fun noteGimbalStick(axis0: Int, axis1: Int) {
@@ -1143,10 +1165,11 @@ class DatalinkDriver(
     }
 
     /** Every caller shares TX, including the ACK pump and background open/keepalive. */
-    private fun onSendThread(body: () -> Unit) {
+    private fun onSendThread(onDropped: () -> Unit = {}, body: () -> Unit) {
         if (Thread.currentThread() === txThread.get()) {
             if (!closed.get()) body()
-        } else enqueueTx(body)
+            else onDropped()
+        } else enqueueTx(onDropped, body)
     }
 
     private fun writeOnNetwork(bytes: ByteArray): Boolean {

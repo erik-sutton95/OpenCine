@@ -4411,6 +4411,38 @@ public final class com/opencapture/opencine/appkit/MonitorTransferRates {
 public final class com/opencapture/opencine/appkit/MonitorTransferRates$Companion {
 }
 
+public final class com/opencapture/opencine/appkit/MonitorVoiceAction : java/lang/Enum {
+	public static final field Companion Lcom/opencapture/opencine/appkit/MonitorVoiceAction$Companion;
+	public static final field PRESET Lcom/opencapture/opencine/appkit/MonitorVoiceAction;
+	public static final field START Lcom/opencapture/opencine/appkit/MonitorVoiceAction;
+	public static final field STOP Lcom/opencapture/opencine/appkit/MonitorVoiceAction;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/appkit/MonitorVoiceAction;
+	public static fun values ()[Lcom/opencapture/opencine/appkit/MonitorVoiceAction;
+}
+
+public final class com/opencapture/opencine/appkit/MonitorVoiceAction$Companion {
+	public final fun forCommand (Lcom/opencapture/opencine/appkit/VoiceCommand;)Lcom/opencapture/opencine/appkit/MonitorVoiceAction;
+}
+
+public final class com/opencapture/opencine/appkit/MonitorVoicePreferences {
+	public static final field $stable I
+	public fun <init> (Landroid/content/Context;)V
+	public fun <init> (Landroid/content/SharedPreferences;)V
+	public final fun allows (Lcom/opencapture/opencine/appkit/VoiceCommand;)Z
+	public final fun isEnabled (Lcom/opencapture/opencine/appkit/MonitorVoiceAction;)Z
+	public final fun setEnabled (Lcom/opencapture/opencine/appkit/MonitorVoiceAction;Z)V
+}
+
+public final class com/opencapture/opencine/appkit/MonitorVoiceTool {
+	public static final field $stable I
+	public fun <init> (ZLjava/lang/String;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V
+	public final fun getArmed ()Z
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getPauseForSettings ()Lkotlin/jvm/functions/Function0;
+	public final fun getToggle ()Lkotlin/jvm/functions/Function0;
+}
+
 public final class com/opencapture/opencine/appkit/MotionProgramSession {
 	public static final field $stable I
 	public fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;)V
@@ -5735,6 +5767,112 @@ public final class com/opencapture/opencine/appkit/StationSetupRoute$Companion {
 public abstract interface class com/opencapture/opencine/appkit/StoredString {
 	public abstract fun read ()Ljava/lang/String;
 	public abstract fun write (Ljava/lang/String;)V
+}
+
+public abstract interface class com/opencapture/opencine/appkit/VoiceCommand {
+	public static final field Companion Lcom/opencapture/opencine/appkit/VoiceCommand$Companion;
+	public fun allows (Lcom/opencapture/opencine/core/CameraSnapshot;)Z
+	public fun getChangesSettings ()Z
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommand$Companion {
+	public final fun parse (Ljava/lang/String;)Lcom/opencapture/opencine/appkit/VoiceCommand;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommand$DefaultImpls {
+	public static fun allows (Lcom/opencapture/opencine/appkit/VoiceCommand;Lcom/opencapture/opencine/core/CameraSnapshot;)Z
+	public static fun getChangesSettings (Lcom/opencapture/opencine/appkit/VoiceCommand;)Z
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommand$NextPreset : com/opencapture/opencine/appkit/VoiceCommand {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/VoiceCommand$NextPreset;
+	public fun allows (Lcom/opencapture/opencine/core/CameraSnapshot;)Z
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChangesSettings ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommand$Preset : com/opencapture/opencine/appkit/VoiceCommand {
+	public static final field $stable I
+	public fun <init> (I)V
+	public fun allows (Lcom/opencapture/opencine/core/CameraSnapshot;)Z
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/appkit/VoiceCommand$Preset;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkit/VoiceCommand$Preset;IILjava/lang/Object;)Lcom/opencapture/opencine/appkit/VoiceCommand$Preset;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChangesSettings ()Z
+	public final fun getNumber ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommand$PreviousPreset : com/opencapture/opencine/appkit/VoiceCommand {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/VoiceCommand$PreviousPreset;
+	public fun allows (Lcom/opencapture/opencine/core/CameraSnapshot;)Z
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChangesSettings ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommand$Start : com/opencapture/opencine/appkit/VoiceCommand {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/VoiceCommand$Start;
+	public fun allows (Lcom/opencapture/opencine/core/CameraSnapshot;)Z
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChangesSettings ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommand$Stop : com/opencapture/opencine/appkit/VoiceCommand {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/VoiceCommand$Stop;
+	public fun allows (Lcom/opencapture/opencine/core/CameraSnapshot;)Z
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChangesSettings ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommand$SwitchLens : com/opencapture/opencine/appkit/VoiceCommand {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/VoiceCommand$SwitchLens;
+	public fun allows (Lcom/opencapture/opencine/core/CameraSnapshot;)Z
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getChangesSettings ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceCommandKt {
+	public static final fun executeVoiceCommand (Lcom/opencapture/opencine/appkit/MonitorControlModel;Lcom/opencapture/opencine/appkit/VoiceCommand;Lcom/opencapture/opencine/appkit/VoiceControlTarget;Lcom/opencapture/opencine/appkit/CameraSettingsPresetsModel;Lcom/opencapture/opencine/core/CommandDispatchAdmission;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceControlTarget {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/opencine/appkit/VoiceControlTarget$Companion;
+	public synthetic fun <init> (Ljava/util/UUID;JLcom/opencapture/opencine/core/CaptureMode;Lcom/opencapture/opencine/core/RecordingState;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-knA1ijU ()Ljava/util/UUID;
+	public final fun component2-atwjfzU ()J
+	public final fun component3 ()Lcom/opencapture/opencine/core/CaptureMode;
+	public final fun component4 ()Lcom/opencapture/opencine/core/RecordingState;
+	public final fun copy-Z1jm-kQ (Ljava/util/UUID;JLcom/opencapture/opencine/core/CaptureMode;Lcom/opencapture/opencine/core/RecordingState;)Lcom/opencapture/opencine/appkit/VoiceControlTarget;
+	public static synthetic fun copy-Z1jm-kQ$default (Lcom/opencapture/opencine/appkit/VoiceControlTarget;Ljava/util/UUID;JLcom/opencapture/opencine/core/CaptureMode;Lcom/opencapture/opencine/core/RecordingState;ILjava/lang/Object;)Lcom/opencapture/opencine/appkit/VoiceControlTarget;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEpoch-atwjfzU ()J
+	public final fun getMode ()Lcom/opencapture/opencine/core/CaptureMode;
+	public final fun getRecording ()Lcom/opencapture/opencine/core/RecordingState;
+	public final fun getSession-knA1ijU ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/VoiceControlTarget$Companion {
+	public final fun from (Lcom/opencapture/opencine/core/CameraSnapshot;)Lcom/opencapture/opencine/appkit/VoiceControlTarget;
 }
 
 public final class com/opencapture/opencine/appkit/diagnostics/DiagnosticCamera {

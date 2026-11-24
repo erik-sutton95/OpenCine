@@ -13,6 +13,24 @@ module `com.opencapture.opencine:appkit`.
 - Names no brand, product or app, and keeps no unlisted mutable global (the shared UI rules scan
   it: `SharedUIRulesTests`, Kotlin `SharedUIRulesTest`).
 
+## Voice control
+
+An operator can start a take while standing in frame, or stop it while both hands are on the rig.
+An app can compose Voice as the last item in expanded View Assist and expose command switches
+under Settings, then Controls. The operator taps Voice to arm it and starts each command with
+“Camera.” The microphone uses the phone's on-device English speech service. Once its model is
+downloaded, listening works on a camera Wi-Fi link without internet access.
+
+Start and Stop have separate switches. Preset recall is available while the camera is idle.
+Each app provides the active camera identity, recording state and command admission. iOS can
+also expose an optional lens switch when the app supplies an admitted optical control. Android
+offers Start, Stop and preset recall.
+
+The iOS adapter uses Speech on supported iOS 26 devices. Android starts one on-device
+recognition request per arm, with segmented audio on supported Android 13 and later speech
+services. If Android ends a request, the operator can tap Voice to arm it again. Locking the
+phone, leaving the app or handing the microphone to a live stream cancels listening.
+
 ## Saved cameras
 
 `SavedCamerasStore` keeps one `SavedCamerasDocument` (version 1, JSON, dates in epoch

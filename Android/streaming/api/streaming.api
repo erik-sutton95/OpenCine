@@ -511,6 +511,7 @@ public final class com/opencapture/opencine/streaming/StreamMicrophone {
 	public fun <init> ()V
 	public fun <init> (II)V
 	public synthetic fun <init> (IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun start (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;)V
 	public final fun start (Lkotlin/jvm/functions/Function2;)V
 	public final fun stop ()V
 }
