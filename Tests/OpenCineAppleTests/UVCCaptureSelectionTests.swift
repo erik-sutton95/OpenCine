@@ -47,7 +47,7 @@ struct CaptureHardwareFilterTests {
     }
 
     @Test func theMacsOwnCameraAndVirtualCamerasAreNot() {
-        for model in ["MacBookPro18,3", "OpenCine Nikon Z", "Insta360 Model", "iPhone17,2", ""] {
+        for model in ["MacBookPro18,3", "OpenCine.Camera.1", "Virtual Camera Model", "iPhone17,2", ""] {
             #expect(!UVCCaptureSelection.isCaptureHardware(modelID: model), "\(model)")
         }
     }

@@ -26,7 +26,7 @@ import Testing
             makeDataReadyCallback: nil, refcon: nil, formatDescription: format,
             sampleTiming: &timing, sampleBufferOut: &input) == noErr)
     let sample = try #require(input)
-    let key = "OpenZCine.FrameIdentity" as CFString
+    let key = "OpenCine.Test.FrameIdentity" as CFString
     CMSetAttachment(
         sample, key: key, value: "frame-7" as CFString,
         attachmentMode: kCMAttachmentMode_ShouldPropagate)

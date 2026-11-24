@@ -1,7 +1,7 @@
 import Foundation
 
-/// One of the driver's fixed inputs. These identifiers never change: a receiving app such as OBS
-/// saves them in its scenes, so changing one loses a user's setup.
+/// One of the driver's fixed inputs. These identifiers never change: a receiving app saves them
+/// in its scenes, so changing one loses a user's setup.
 public struct VirtualCameraSlot: Hashable, Sendable {
     public static let count = 8
     /// Slots in order. A slot's position is its number minus one.

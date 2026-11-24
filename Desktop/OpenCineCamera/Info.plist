@@ -18,6 +18,6 @@
     <string>$(TeamIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
   </dict>
   <key>NSSystemExtensionUsageDescription</key>
-  <string>OpenCine publishes one virtual camera input per camera module, so OBS, Zoom, Meet and Discord can receive each camera's live picture.</string>
+  <string>OpenCine publishes one virtual camera input per camera module, so streaming, recording and video call apps can receive each camera's live picture.</string>
 </dict>
 </plist>

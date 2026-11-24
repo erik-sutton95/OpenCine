@@ -197,8 +197,8 @@ import Testing
 struct SlotTableWireTests {
     private func table() -> VirtualCameraSlotTable {
         var table = VirtualCameraSlotTable()
-        table.assign(moduleID: "nikon-z", displayName: "OpenCine Nikon Z")
-        table.assign(moduleID: "pocket", displayName: "OpenCine Pocket")
+        table.assign(moduleID: "camera-a", displayName: "OpenCine Camera A")
+        table.assign(moduleID: "camera-b", displayName: "OpenCine Camera B")
         return table
     }
 
