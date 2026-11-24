@@ -24,8 +24,9 @@ final class ModuleProcess: Identifiable {
     @ObservationIgnored private var inbound = Data()
     @ObservationIgnored private var expectingExit = false
     @ObservationIgnored private var restartAfterExit = false
-    /// Latest window instruction, replayed when the module reports ready.
-    @ObservationIgnored private var lastInstruction: DockMessage?
+    /// Every message from the module, and `nil` once its process has ended. The dock's window
+    /// coordinator decides what each one means for the windows.
+    @ObservationIgnored var onEvent: (ModuleProcess, ModuleMessage?) -> Void = { _, _ in }
 
     init(module: InstalledModule, slot: VirtualCameraSlot) {
         id = module.manifest.id
@@ -95,7 +96,7 @@ final class ModuleProcess: Identifiable {
     }
 
     func send(_ message: DockMessage) {
-        if case .quit = message { expectingExit = true } else { lastInstruction = message }
+        if case .quit = message { expectingExit = true }
         guard let channel, let data = try? LengthPrefixedJSON.encode(message) else { return }
         try? channel.write(contentsOf: data)
     }
@@ -138,12 +139,11 @@ final class ModuleProcess: Identifiable {
         }
         for message in messages {
             switch message {
-            case .ready:
-                phase = .running
-                if let lastInstruction { send(lastInstruction) }
-            case .status(let next):
-                status = next
+            case .ready: phase = .running
+            case .status(let next): status = next
+            case .selectTab, .windowFrame, .shown, .closeRequested: break
             }
+            onEvent(self, message)
         }
     }
 
@@ -154,12 +154,15 @@ final class ModuleProcess: Identifiable {
         if restartAfterExit {
             restartAfterExit = false
             phase = .stopped
+            onEvent(self, nil)
             start()
         } else if expectingExit {
             phase = .stopped
+            onEvent(self, nil)
         } else {
             phase = .crashed
             status = .failed("Stopped unexpectedly (\(code)). Its input shows a slate until restart.")
+            onEvent(self, nil)
         }
     }
 
