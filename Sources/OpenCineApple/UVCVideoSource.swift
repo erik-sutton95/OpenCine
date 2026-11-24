@@ -613,9 +613,12 @@
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             let timeNs = pts.isNumeric ? Int64(CMTimeGetSeconds(pts) * 1_000_000_000) : 0
             counters.withLock { $0.captured &+= 1 }
-            if CaptureFrameLevel.isBlack(pixelBuffer) {
-                log.notice("capture frame black at \(timeNs, privacy: .public)")
-            }
+            #if targetEnvironment(macCatalyst)
+                // Desktop diagnostic only; the iPad capture path is unchanged.
+                if CaptureFrameLevel.isBlack(pixelBuffer) {
+                    log.notice("capture frame black at \(timeNs, privacy: .public)")
+                }
+            #endif
             let lease = fence.lease(pixelBuffer, timeNs: timeNs)
             switch framesContinuation.yield(lease) {
             case .dropped(let previous):
@@ -645,6 +648,8 @@
             let width = planar ? CVPixelBufferGetWidthOfPlane(frame, 0) : CVPixelBufferGetWidth(frame)
             let height = planar ? CVPixelBufferGetHeightOfPlane(frame, 0) : CVPixelBufferGetHeight(frame)
             let row = planar ? CVPixelBufferGetBytesPerRowOfPlane(frame, 0) : CVPixelBufferGetBytesPerRow(frame)
+            // The grid needs at least one sample per step: a smaller frame is not judged.
+            guard width >= 16, height >= 8 else { return false }
             // Luma byte per pixel: the plane itself, every other byte of 2vuy/yuvs, or green of BGRA.
             let (step, offset): (Int, Int) =
                 planar ? (1, 0)
