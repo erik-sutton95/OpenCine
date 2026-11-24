@@ -40,8 +40,13 @@ import PackageDescription
 //   capture sheets, live chrome, gimbal views) builds on OpenCineCameraVocabulary, MonitorUI,
 //   MonitorPresentation, OpenCineAppKit, OpenCineAppKitApple, Core, Media and Motion only: never
 //   OpenCineDJI or another integration, an app or a third-party package.
+// - OpenCineDesktopKit (the desktop dock's portable rules: driver slots, module manifest and
+//   registry, dock and module messages) imports Foundation only and names no app or manufacturer.
+//   OpenCineVirtualCamera (the virtual camera producer, frame policy and the Catalyst module host)
+//   depends on OpenCineDesktopKit and Apple frameworks only: never UI, an integration or an app.
 //
-// Platforms: one list for the whole package. macOS is the host for `swift test` only; no macOS
+// Platforms: one list for the whole package. macOS is the host for `swift test` and for the
+// desktop dock and driver in Desktop/, which link only the two desktop products; no other macOS
 // app ships (former packages: Core/Multicam/DJI/Insta360 macOS 13, UI 12, Nikon and the harness
 // 14; everything builds at 13). iOS 17 and watchOS 10 are unchanged.
 let package = Package(
@@ -123,8 +128,6 @@ let package = Package(
         // Optional Frame.io delivery. No Core values genuinely help it, so it depends on nothing.
         .target(name: "OpenCineFrameIO"),
         .testTarget(name: "OpenCineFrameIOTests", dependencies: ["OpenCineFrameIO"]),
-        // Phone gyro capture for Gyroflow: take segmentation, GCSV, mount calibration, drift,
-        // stabilization save/restore and log storage. Foundation only; names no app or manufacturer.
         // The desktop dock's portable rules: driver slots, module manifest and registry, dock and
         // module messages. Foundation only; names no manufacturer or app.
         .target(name: "OpenCineDesktopKit"),
@@ -133,6 +136,8 @@ let package = Package(
         // Apple frameworks plus OpenCineDesktopKit only; no UI, integration or app.
         .target(name: "OpenCineVirtualCamera", dependencies: ["OpenCineDesktopKit"]),
         .testTarget(name: "OpenCineVirtualCameraTests", dependencies: ["OpenCineVirtualCamera", "OpenCineDesktopKit"]),
+        // Phone gyro capture for Gyroflow: take segmentation, GCSV, mount calibration, drift,
+        // stabilization save/restore and log storage. Foundation only; names no app or manufacturer.
         .target(name: "OpenCineGyro"),
         .testTarget(name: "OpenCineGyroTests", dependencies: ["OpenCineGyro"]),
         // Gyro capture's Apple shell: CoreMotion driver, UserDefaults store and the capture coordinator.

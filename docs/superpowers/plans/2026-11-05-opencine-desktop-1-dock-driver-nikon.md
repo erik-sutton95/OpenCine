@@ -26,7 +26,7 @@ The owner has not yet given a show time. Plan to the earliest case until told: *
 
 ## Global Constraints
 
-- Core worktree: `/Users/eriksutton/orca/workspaces/OpenCine/opencine-desktop-design`, branch `erik-sutton95/opencine-desktop-design`. Z worktree: create with Orca, branch of the same name, with its package sibling resolving to the Core worktree. Never edit shared checkouts.
+- Core worktree: a task-owned OpenCine worktree on branch `erik-sutton95/opencine-desktop-design`. Z worktree: create with Orca, branch of the same name, with its package sibling resolving to the Core worktree. Never edit shared checkouts.
 - Conventional Commits. No co-author trailers. Never the em dash character. Stage files explicitly.
 - Pushing, PRs, merging and pin moves need the owner's explicit go-ahead.
 - No third-party package. iOS defaults and behavior stay unchanged: every new behavior sits behind a Catalyst guard or an explicit host value.
@@ -50,10 +50,12 @@ The owner has not yet given a show time. Plan to the earliest case until told: *
 ### Task 1: Bring Core's Catalyst support forward
 
 **Files:**
+
 - Modify: as commit `f6dba6d52` does (`Package.swift`, `Sources/OpenCineApple/{CameraHotspotSystem,MonitorPlaybackAudioMeterRuntime,UVCVideoSource}.swift`, `Sources/OpenCineCameraControls/Settings/*`, `Sources/OpenCineWatch/*`)
 - Create: `Sources/OpenCineApple/UVCCaptureSelection.swift`, its tests, `docs/native-runtime/mac-catalyst-capture.md` (from that commit)
 
 **Interfaces:**
+
 - Produces: `UVCCaptureSelection`, optional sharing groups in `MonitorOperatorSettingsConfiguration`, Catalyst guards.
 
 - [ ] **Step 1: Cherry-pick**
@@ -82,15 +84,17 @@ Complete the cherry-pick, keeping the original subject.
 ### Task 2: Rebuild the Z Catalyst port on today's main
 
 **Files (Z worktree):**
-- Apply: `~/Work/OpenCine-Archive-20261102/git/patches/wt_OpenZCine__Users_eriksutton_orca_workspaces_OpenZCine_mac-catalyst-rebuild-20261022.patch`
-- Add from `~/Work/OpenCine-Archive-20261102/git/untracked/ssd_lanes_MacZRebuild-20261022_OpenZCine.tgz`: `ios/Runner/MacVirtualCamera.swift`, `ios/Runner/Runner-Mac.entitlements`, `scripts/macos-build.sh`, `docs/macos-host.md`. **Not** `macos/` (Tasks 5 and 6 move what is useful into OpenCine).
+
+- Apply: the October Mac Catalyst rebuild patch for OpenZCine (2026-10-22), from the maintainer's local archive
+- Add from the same archive's untracked OpenZCine Mac rebuild files (2026-10-22): `ios/Runner/MacVirtualCamera.swift`, `ios/Runner/Runner-Mac.entitlements`, `scripts/macos-build.sh`, `docs/macos-host.md`. **Not** `macos/` (Tasks 5 and 6 move what is useful into OpenCine).
 
 **Interfaces:**
+
 - Produces: `scripts/macos-build.sh` building a signed Catalyst `Runner.app`, with the Mac bundle ID `com.opencapture.openzcine.module`, feeding `OpenZCine.VirtualCamera` (the active old driver) until Task 8 repoints it.
 
 - [ ] **Step 1: Apply with three-way merge**
 
-Run: `git apply --3way <patch>`
+Run: `git apply --3way <the October patch>`
 Expected: conflicts in `ios/Runner/Info.plist`, `ios/Runner/NativeAppRoot.swift`, `ios/Runner/StartupDesign.swift`, `justfile` (the dry run listed these four). The other 12 files apply.
 
 - [ ] **Step 2: Resolve conflicts**
@@ -121,10 +125,12 @@ git commit -m "feat(mac): rebuild the Catalyst port on current main"
 This is throwaway code that decides the tab design. No restart and no driver change: it feeds the active old driver.
 
 **Files:**
+
 - Create: `Desktop/Tools/virtual-receiver/main.swift` (kept: a command-line receiver used by Tasks 6 and 8)
 - Create: `docs/desktop/spike-1-results.md`
 
 **Interfaces:**
+
 - Produces: `virtual-receiver --uid <legacy UID> --seconds <n>`, which selects only that exact device, never a physical camera, and prints JSON `{ "frames": Int, "uniqueFrames": Int, "slateFrames": Int, "maxGapMs": Int, "width": Int, "height": Int }`. Uniqueness is a hash of sampled pixels. It exits non-zero if the device is absent.
 
 - [ ] **Step 1: Write the receiver and prove it against the old driver**
@@ -165,10 +171,12 @@ git commit -m "docs(desktop): record hidden module and window swap results"
 ### Task 4: `OpenCineDesktopKit`
 
 **Files:**
+
 - Create: `Sources/OpenCineDesktopKit/{VirtualCameraSlot,VirtualCameraSlotTable,ModuleManifest,DockMessage}.swift`, `Tests/OpenCineDesktopKitTests/*.swift`
 - Modify: `Package.swift`, `atlas/repos/opencine/meta.json` (`layers.core`)
 
 **Interfaces:**
+
 - Produces (all `public`, all `Sendable`):
   - `struct VirtualCameraSlot: Hashable { let number: Int /* 1...8 */; var legacyDeviceID: String; var deviceUUID: UUID; var sourceStreamUUID: UUID; var sinkStreamUUID: UUID; var sinkStreamName: String }`, `static let all: [VirtualCameraSlot]`
   - `struct VirtualCameraSlotTable: Codable, Equatable { static let currentVersion = 1; var version: Int; var assignments: [Assignment]; struct Assignment: Codable, Equatable { let slot: Int; let moduleID: String; var displayName: String }; mutating func assign(moduleID: String, displayName: String) -> VirtualCameraSlot?; func slot(forModule: String) -> VirtualCameraSlot? }`
@@ -229,10 +237,12 @@ git commit -m "feat(desktop): add slot table, module manifest and dock messages"
 ### Task 5: `OpenCineVirtualCamera`
 
 **Files:**
+
 - Create: `Sources/OpenCineVirtualCamera/{FrameCadence,FrameFormat,FramePolicy,ProducerAdmission,SampleEnvelope}.swift` (moved from the archive's `macos/CameraPolicy`), `VirtualCameraPublisher.swift` (from `MacVirtualCamera.swift`), `Tests/OpenCineVirtualCameraTests/*.swift` (the archive's five suites and its `scripts/mac-virtual-camera-tests/PublisherTests.swift`)
 - Modify: `Package.swift`, `atlas/repos/opencine/meta.json`
 
 **Interfaces:**
+
 - Consumes: `VirtualCameraSlot`.
 - Produces:
   - Policy types unchanged but `public`.
@@ -271,9 +281,11 @@ git commit -m "feat(desktop): move the virtual camera producer and policy to sha
 ### Task 6: The shared driver
 
 **Files:**
+
 - Create: `Desktop/project.yml`, `Desktop/OpenCineCamera/{main,CameraProvider,SlotDevice,SlotStream,SlotTableWatcher}.swift`, `Desktop/OpenCineCamera/{Info.plist,OpenCineCamera.entitlements}`, `Desktop/Tools/simulated-producer/main.swift`, `Tests/OpenCineVirtualCameraTests/SlotIsolationTests.swift`
 
 **Interfaces:**
+
 - Consumes: `VirtualCameraSlot`, `VirtualCameraSlotTableFile`, policy types.
 - Produces: extension `com.opencapture.opencine.camera`, publishing one device per table assignment; `simulated-producer --slot <n> --seconds <n> [--die-after <n>]`, labeled SIMULATED, with a burned-in frame counter.
 
@@ -320,10 +332,12 @@ The hardware proof of this driver runs at the end of Task 7, when the dock can i
 ### Task 7: The dock
 
 **Files:**
+
 - Create: `Desktop/OpenCine/{OpenCineApp,DockWindow,TabStrip,DriverController,ModuleRegistry,ModuleProcess,ModuleChannel}.swift`, `Desktop/OpenCine/{Info.plist,OpenCine.entitlements}`, `Desktop/scripts/{build,install-local}.sh`
 - Test: `Tests/OpenCineDesktopKitTests/ModuleRegistryTests.swift`, with `ModuleRegistry`'s rules in `OpenCineDesktopKit`
 
 **Interfaces:**
+
 - Consumes: Task 4's types, the spike's decision and window bridge.
 - Produces:
   - `struct ModuleRegistry` in `OpenCineDesktopKit`: `init(modulesDirectory: URL, dockVersion: String)`, `func installed() throws -> [InstalledModule]`, `struct InstalledModule { manifest: ModuleManifest; bundleURL: URL; compatible: Bool }`
@@ -364,6 +378,7 @@ Expected: `BUILD SUCCEEDED`, with `Contents/Library/SystemExtensions/com.opencap
 - [ ] **Step 5: Restart, then activate once (needs the owner)**
 
 Ping the owner, naming each step and why:
+
   1. Restart the Mac, which clears the 8 old driver entries waiting to uninstall.
   2. Open `/Applications/OpenCine.app` and approve the camera extension in System Settings.
 
@@ -390,14 +405,17 @@ git commit -m "feat(desktop): add the dock with tabs, driver install and module 
 ### Task 8: Nikon as a module (the podcast gate)
 
 **Files (Core worktree):**
+
 - Modify: `Sources/OpenCineApple/MonitorVideoDemand.swift` (add neutral demand for webcam output), `Package.swift` as needed
 
 **Files (Z worktree):**
+
 - Create: `ios/Runner/MacModuleHost.swift` (Catalyst only): the channel client, window bridge, `LSUIElement` behavior and the publisher
 - Modify: `ios/Runner/NativeAppRoot.swift` (send clean frames to `VirtualCameraPublisher` for the assigned slot; do not stop live view on Mac when hidden), `ios/Runner/MacVirtualCamera.swift` (delete: replaced), `ios/Runner.xcodeproj/project.pbxproj`
 - Create: `macos/module.json`
 
 **Interfaces:**
+
 - Consumes: `VirtualCameraPublisher(slot:)`, `VirtualCameraSlotTableFile`, `DockMessage`, `ModuleMessage`, `LengthPrefixedJSON`.
 - Produces: module `{ "id": "nikon-z", "displayName": "Nikon Z", "inputName": "OpenCine Nikon Z", "bundleName": "OpenZCine.app" }`, plus the pattern Part 2 copies for Pocket and Luna.
 
@@ -445,6 +463,7 @@ git commit -m "feat(mac): run OpenZCine as an OpenCine camera module"
 - [ ] **Step 7: Publish the hands-on checklist and ping the owner**
 
 Publish a live page (pass, skip or note per item, state readable back) with:
+
   1. Connect the Z by the show's route. The tab shows a live picture.
   2. `OpenCine Nikon Z` is listed in the receiving app used for the show. It shows the camera, with the chosen LUT and no overlays.
   3. Switch tabs, or cover the window: the receiver's picture keeps moving.
@@ -467,6 +486,7 @@ Fix anything failing before the freeze time. After it, make no changes on this M
 Runs only after the owner has passed Task 8 and said which path they used. The old stack stays through the show if they chose it, or if anything is unresolved.
 
 **Files:**
+
 - Modify: `docs/desktop/README.md` (create: area guide, status, how to build and install, known limits), `AGENTS.md` (boundary bullets), `README.md`, `atlas/api/swift/*` (generated)
 
 - [ ] **Step 1: Remove the old stack, with the owner's confirmation at the time**
