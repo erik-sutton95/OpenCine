@@ -35,10 +35,12 @@
 ### Task 1: Messages, tabs and frame fitting in OpenCineDesktopKit
 
 **Files:**
+
 - Modify: `Sources/OpenCineDesktopKit/DockMessage.swift`
 - Test: `Tests/OpenCineDesktopKitTests/DesktopKitTests.swift` (extend), `Tests/OpenCineDesktopKitTests/WindowFrameTests.swift` (new)
 
 **Interfaces:**
+
 - Produces:
   - `public struct DockTab: Codable, Equatable, Sendable { public var id: String; public var displayName: String; public var state: DockTab.State }` with `public enum State: Codable, Equatable, Sendable { case idle, connecting, live, failed, stopped }`.
   - `public struct DockNotice: Codable, Equatable, Sendable { public var text: String; public var opensDriverSettings: Bool }`.
@@ -93,10 +95,12 @@ Expected: all pass.
 ### Task 2: DockWindowCoordinator
 
 **Files:**
+
 - Create: `Sources/OpenCineDesktopKit/DockWindowCoordinator.swift`
 - Test: `Tests/OpenCineDesktopKitTests/DockWindowCoordinatorTests.swift`
 
 **Interfaces:**
+
 - Consumes: `WindowFrame`, `DockMessage` (Task 1).
 - Produces:
 
@@ -205,14 +209,17 @@ Expected: all pass.
 ### Task 3: Tab bar and window handling in DesktopModuleHost
 
 **Files:**
+
 - Modify: `Sources/OpenCineVirtualCamera/DesktopModuleHost.swift`
 - Create: `Sources/OpenCineVirtualCamera/DesktopTabBar.swift` (SwiftUI view plus its toolbar install, Catalyst only)
 
 **Interfaces:**
+
 - Consumes: Task 1 messages.
 - Produces: no new public API beyond what `DesktopModuleHost` already exposes (apps keep calling `DesktopModuleHost.current?.start()`).
 
 Behaviour:
+
 - **Window:** every content window gets `titled | closable | miniaturizable | resizable`, is movable, has its title hidden, and does not enter full screen (collection behaviour `fullScreenNone`). Remove the old `prepare` that made it unmovable and title-bar-less.
 - **Tab bar:** each `UIWindowScene` gets `titlebar.titleVisibility = .hidden`, `toolbarStyle = .unified` and an `NSToolbar` whose single leading item is an `NSUIViewToolbarItem` hosting `DesktopTabBar` (a `UIHostingController` view), followed by a flexible space. Install on scene connect and for scenes already connected at `start()`. The bar renders the latest `.tabs` message: tabs with status dot and display name, the selected tab highlighted, "Restart" on a stopped tab, and the notice at the trailing end (a button that opens `x-apple.systempreferences:com.apple.LoginItems-Settings.extension` when `opensDriverSettings`). A tab click sends `selectTab(id:)`. Empty toolbar space drags the window natively.
 - **Close button:** retarget the window's close button (`standardWindowButton:` 0) to send `closeRequested`; the module never closes its own window.
@@ -230,12 +237,15 @@ Expected: BUILD SUCCEEDED with no new warnings. Also `swift build` (macOS) and a
 ### Task 4: Windowless dock driven by the coordinator
 
 **Files:**
+
 - Modify: `Desktop/OpenCine/OpenCineApp.swift`, `Desktop/OpenCine/DockModel.swift`, `Desktop/OpenCine/ModuleProcess.swift`, `Desktop/OpenCine/TabStrip.swift`, `Desktop/OpenCine/Info.plist` (version 0.2.0)
 
 **Interfaces:**
+
 - Consumes: `DockWindowCoordinator`, `DockTab`, `DockNotice`, new messages (Tasks 1 and 2).
 
 Behaviour:
+
 - `ModuleProcess` reports `ready`, `selectTab`, `windowFrame`, `shown`, `closeRequested` and its exit to `DockModel` through one callback `onEvent: (ModuleProcess, ModuleMessage?) -> Void` (nil for exit). It no longer replays a last instruction on ready; the coordinator does.
 - `DockModel` owns a `DockWindowCoordinator`, routes every event to it, sends the returned commands, starts a 150 ms `switchTimedOut` timer after each `select`, and logs the switch time (select to `shown`) with `os.Logger` category `tabs`. After any module status, phase, selection or driver state change, it sends `.tabs(...)` to every running module (map `ModuleProcess` phase and status to `DockTab.State`; `notice` from the driver state and `problem`, with `opensDriverSettings` for awaiting approval).
 - The window frame persists in `UserDefaults` key `windowFrame` on each `final` report and is restored through `fitted(onto:defaultWidth: 1280, defaultHeight: 800)` against `NSScreen.screens` visible frames.
@@ -257,6 +267,7 @@ Expected: all pass.
 ### Task 5: Modules, install and smoke run
 
 **Files:**
+
 - Modify in each app worktree under `/Volumes/OCFast/work/desktop/` (OpenPocketCine, OpenInstaCine, OpenZCine): `macos/module.json` (`"minimumDockVersion": "0.2.0"`) and `opencine-pins.txt` (new OpenCine head from Task 4).
 
 - [ ] **Step 1: Re-pin, rebuild each module** with `just macos-build`, unregister each built app from LaunchServices, commit `chore(desktop): pin OpenCine with in-window tabs`, push to each draft PR.

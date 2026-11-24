@@ -43,6 +43,7 @@ names no camera brand; the names come from the modules. The window keeps normal 
 and resizable.
 
 **Messages** (`OpenCineDesktopKit`, portable):
+
 - Dock to module: `tabs([Tab], selectedID)` whenever the list, a status or the selection changes;
   `place(frame)` for hidden modules; `show(frame)` and `hide` as today.
 - Module to dock: `selectTab(id)` when a tab is clicked; `windowFrame(frame)` when the visible window
