@@ -7,7 +7,8 @@
     import UIKit
 
     /// What runs a Catalyst app as a camera module of the OpenCine dock: its slot's webcam output,
-    /// the channel to the dock on standard input, and placing its window under the dock's tabs.
+    /// the channel to the dock on standard input, and its window, which carries the dock's tabs in its
+    /// title bar and is shown, placed and hidden as the dock says.
     /// `nil` when the app was not started by the dock, so a direct launch behaves as before.
     @available(macCatalyst 17.0, *)
     @MainActor
@@ -21,11 +22,26 @@
         private var inbound = Data()
         private var lastStatus: ModuleStatus?
         private nonisolated let lastFrame = OSAllocatedUnfairLock<UInt64?>(initialState: nil)
+        private var started = false
         private var statusTimer: Timer?
         private var windowTimer: Timer?
-        /// The dock's latest window instruction. Reapplied until it holds: the first one can arrive
-        /// before the window exists, and the system can restore a window's old place.
+        /// The dock's latest visibility instruction, `show` or `hide`. Kept as instructed by the hold
+        /// timer, since the first one can arrive before the window exists.
         private var windowInstruction: DockMessage?
+        /// The latest frame the dock asked for. A newly created window opens there, and a hidden
+        /// window is kept there; a visible window is never moved by the timer, so it cannot fight a drag.
+        private var instructedFrame: WindowFrame?
+        /// Windows already placed once, so later timer ticks leave them where the owner puts them.
+        private var placedWindows: Set<ObjectIdentifier> = []
+        /// Waiting for the window to be on screen before answering `shown`.
+        private var awaitingShown = false
+        private let tabBar = DesktopTabBarModel()
+        private lazy var toolbar = DesktopTabToolbar(model: tabBar)
+        private lazy var closeTarget = DesktopCloseTarget { [weak self] in self?.send(.closeRequested) }
+        /// Frame reports: at most one per 100 ms while the window moves, and a final one once it settles.
+        private var lastFrameReport: (frame: WindowFrame, at: UInt64)?
+        private var finalFrameTimer: Timer?
+        private var windowObservers: [NSObjectProtocol] = []
 
         static func launchedByDock(environment: [String: String]) -> DesktopModuleHost? {
             guard let moduleID = environment["OPENCINE_MODULE_ID"],
@@ -43,8 +59,13 @@
 
         /// Call once at launch. Webcam output is on by default in a module.
         public func start() {
+            guard !started else { return }
+            started = true
             AppKitBridge.setAccessoryActivationPolicy()
             output.setEnabled(true)
+            tabBar.onSelect = { [weak self] id in self?.selectTab(id) }
+            toolbar.installOnConnectedScenes()
+            observeWindowFrames()
             startReadingChannel()
             send(.ready(moduleID: moduleID))
             report(.idle)
@@ -90,22 +111,107 @@
             }
             for message in messages {
                 switch message {
-                case .show, .hide:
+                case .show(let frame):
                     windowInstruction = message
-                    holdWindow()
-                    // Each instruction is the dock saying this tab is the visible one right now.
-                    if case .show = message { AppKitBridge.raise() }
+                    instructedFrame = frame
+                    // The window is moved by this instruction, not by the owner: no report for it.
+                    lastFrameReport = (frame, DispatchTime.now().uptimeNanoseconds)
+                    awaitingShown = true
+                    toolbar.installOnConnectedScenes()
+                    AppKitBridge.show(at: frame, closeTarget: closeTarget)
+                    confirmShownIfVisible()
+                case .place(let frame):
+                    instructedFrame = frame
+                    AppKitBridge.place(at: frame)
+                case .hide:
+                    windowInstruction = message
+                    awaitingShown = false
+                    finalFrameTimer?.invalidate()
+                    // A minimized window goes too, so its Dock tile cannot bring back a hidden tab.
+                    AppKitBridge.hideAll(includingMinimized: true)
+                case .tabs(let tabs, let selectedID, let notice):
+                    tabBar.tabs = tabs
+                    tabBar.selectedID = selectedID
+                    tabBar.notice = notice
                 case .quit: exit(0)
                 }
             }
         }
 
+        private var isShownTab: Bool {
+            if case .show = windowInstruction { true } else { false }
+        }
+
+        /// Keeps visibility as instructed and places windows the first time they are seen. A visible
+        /// window keeps whatever frame the owner gives it.
         private func holdWindow() {
-            switch windowInstruction {
-            case .show(let frame): AppKitBridge.hold(frame: frame)
-            case .hide: AppKitBridge.holdHidden()
-            case .quit, nil: break
+            toolbar.installOnConnectedScenes()
+            for window in AppKitBridge.windows {
+                AppKitBridge.prepare(window, closeTarget: closeTarget)
+                let fresh = placedWindows.insert(ObjectIdentifier(window)).inserted
+                if fresh || !isShownTab, let instructedFrame {
+                    AppKitBridge.setFrame(instructedFrame, of: window)
+                }
             }
+            switch windowInstruction {
+            case .show: AppKitBridge.keepShown()
+            case .hide: AppKitBridge.hideAll(includingMinimized: false)
+            default: break
+            }
+            confirmShownIfVisible()
+        }
+
+        private func confirmShownIfVisible() {
+            guard awaitingShown, isShownTab, AppKitBridge.anyWindowVisible else { return }
+            awaitingShown = false
+            send(.shown)
+        }
+
+        private func selectTab(_ id: String) {
+            // A click right after a drag: the dock gets the settled frame before it switches.
+            if finalFrameTimer?.isValid == true { reportFrame(final: true) }
+            send(.selectTab(id: id))
+        }
+
+        private func observeWindowFrames() {
+            for name in ["NSWindowDidMoveNotification", "NSWindowDidResizeNotification"] {
+                windowObservers.append(
+                    NotificationCenter.default.addObserver(
+                        forName: Notification.Name(name), object: nil, queue: .main
+                    ) { [weak self] notification in
+                        let isContent = (notification.object as? NSObject).map(AppKitBridge.isContentWindow)
+                        MainActor.assumeIsolated {
+                            guard isContent == true else { return }
+                            self?.windowFrameChanged()
+                        }
+                    })
+            }
+        }
+
+        private func windowFrameChanged() {
+            guard isShownTab, let frame = AppKitBridge.visibleFrame, frame != lastFrameReport?.frame
+            else { return }
+            let now = DispatchTime.now().uptimeNanoseconds
+            if let last = lastFrameReport, now - last.at < 100_000_000 {
+                // Too soon for another; the final report carries it.
+            } else {
+                reportFrame(final: false)
+            }
+            finalFrameTimer?.invalidate()
+            let timer = Timer(timeInterval: 0.15, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.reportFrame(final: true) }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            finalFrameTimer = timer
+        }
+
+        private func reportFrame(final: Bool) {
+            if final { finalFrameTimer?.invalidate() }
+            guard isShownTab, let frame = AppKitBridge.visibleFrame else { return }
+            lastFrameReport = (frame, DispatchTime.now().uptimeNanoseconds)
+            // The dock's latest frame for this window is now this one.
+            instructedFrame = frame
+            send(.windowFrame(frame, final: final))
         }
 
         /// The channel is a socket on standard input. A plain blocking reader stays reliable where a
@@ -145,6 +251,18 @@
         }
     }
 
+    /// Receives the window's close button: the dock decides, the module never closes its own window.
+    @MainActor
+    final class DesktopCloseTarget: NSObject {
+        private let action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func closeRequested(_ sender: Any?) { action() }
+    }
+
     /// AppKit calls Catalyst has no public route to, by name. Each call checks the selector exists,
     /// so a system change costs window placement rather than the camera feed.
     @MainActor
@@ -154,17 +272,19 @@
                 .perform(NSSelectorFromString("sharedApplication"))?.takeUnretainedValue() as? NSObject
         }
 
-        private static var windows: [NSObject] {
+        static var windows: [NSObject] {
             let all =
                 application?.perform(NSSelectorFromString("windows"))?.takeUnretainedValue() as? [NSObject]
                 ?? []
-            let content = all.filter { $0.responds(to: NSSelectorFromString("setFrame:display:")) }
-            // A file panel or alert keeps its own place and size.
-            return content.filter {
-                let name = NSStringFromClass(type(of: $0))
-                return !name.contains("StatusBar") && !name.contains("Menu") && !name.contains("Panel")
-                    && !name.contains("Alert")
-            }
+            return all.filter(isContentWindow)
+        }
+
+        /// A window the module shows its camera in. A file panel or alert keeps its own place and size.
+        nonisolated static func isContentWindow(_ window: NSObject) -> Bool {
+            guard window.responds(to: NSSelectorFromString("setFrame:display:")) else { return false }
+            let name = NSStringFromClass(type(of: window))
+            return !name.contains("StatusBar") && !name.contains("Menu") && !name.contains("Panel")
+                && !name.contains("Alert")
         }
 
         static func setAccessoryActivationPolicy() {
@@ -177,75 +297,133 @@
                 application, selector, 1)
         }
 
-        /// Places every content window at `frame` and in front, only when it is not already there.
-        static func hold(frame: WindowFrame) {
+        private static func isVisible(_ window: NSObject) -> Bool {
+            window.value(forKey: "visible") as? Bool ?? false
+        }
+
+        private static func isMiniaturized(_ window: NSObject) -> Bool {
+            window.value(forKey: "miniaturized") as? Bool ?? false
+        }
+
+        private static func frame(of window: NSObject) -> WindowFrame? {
+            guard let rect = (window.value(forKey: "frame") as? NSValue)?.cgRectValue else { return nil }
+            return WindowFrame(
+                x: rect.origin.x, y: rect.origin.y, width: rect.size.width, height: rect.size.height)
+        }
+
+        static var anyWindowVisible: Bool { windows.contains(where: isVisible) }
+
+        /// The frame of the window on screen, in AppKit screen coordinates.
+        static var visibleFrame: WindowFrame? {
+            windows.first(where: isVisible).flatMap(frame(of:))
+        }
+
+        /// Sets the window's frame when it differs, without ordering it in.
+        static func setFrame(_ frame: WindowFrame, of window: NSObject) {
+            guard self.frame(of: window) != frame else { return }
+            let selector = NSSelectorFromString("setFrame:display:")
+            guard window.responds(to: selector) else { return }
             let target = CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
+            typealias Function = @convention(c) (AnyObject, Selector, CGRect, Bool) -> Void
+            unsafeBitCast(window.method(for: selector), to: Function.self)(window, selector, target, true)
+        }
+
+        /// The dock chose this tab: the window comes in front at `frame`, restored if minimized, and
+        /// the module takes keyboard focus.
+        static func show(at frame: WindowFrame, closeTarget: DesktopCloseTarget) {
             for window in windows {
-                let current = (window.value(forKey: "frame") as? NSValue)?.cgRectValue
-                let visible = window.value(forKey: "visible") as? Bool ?? false
-                // Catalyst can put the title bar back when a scene updates, so this is checked too.
-                prepare(window)
-                if visible, current == target { continue }
-                let selector = NSSelectorFromString("setFrame:display:")
-                typealias Function = @convention(c) (AnyObject, Selector, CGRect, Bool) -> Void
-                unsafeBitCast(window.method(for: selector), to: Function.self)(
-                    window, selector, target, true)
+                prepare(window, closeTarget: closeTarget)
+                setFrame(frame, of: window)
+                if isMiniaturized(window) {
+                    window.perform(NSSelectorFromString("deminiaturize:"), with: nil)
+                }
+                window.perform(NSSelectorFromString("makeKeyAndOrderFront:"), with: nil)
+                window.perform(NSSelectorFromString("orderFrontRegardless"))
+            }
+            activate()
+        }
+
+        /// A hidden window follows the visible one's frame, out of sight.
+        static func place(at frame: WindowFrame) {
+            for window in windows { setFrame(frame, of: window) }
+        }
+
+        /// Brings back a window that is neither on screen nor minimized by the owner, such as one
+        /// created after the instruction arrived.
+        static func keepShown() {
+            for window in windows where !isVisible(window) && !isMiniaturized(window) {
                 window.perform(NSSelectorFromString("orderFrontRegardless"))
             }
         }
 
-        /// Puts the module's content windows in front, without taking keyboard focus.
-        static func raise() {
-            for window in windows {
-                window.perform(NSSelectorFromString("orderFrontRegardless"))
-            }
-        }
-
-        static func holdHidden() {
-            for window in windows where window.value(forKey: "visible") as? Bool ?? false {
+        static func hideAll(includingMinimized: Bool) {
+            for window in windows where isVisible(window) || (includingMinimized && isMiniaturized(window)) {
                 window.perform(NSSelectorFromString("orderOut:"), with: nil)
             }
         }
 
-        /// The dock's strip is the title bar: no window controls, and it moves only with the strip.
-        private static func prepare(_ window: NSObject) {
+        private static func activate() {
+            guard let application else { return }
+            let modern = NSSelectorFromString("activate")
+            if application.responds(to: modern) {
+                application.perform(modern)
+                return
+            }
+            let legacy = NSSelectorFromString("activateIgnoringOtherApps:")
+            guard application.responds(to: legacy) else { return }
+            typealias Function = @convention(c) (AnyObject, Selector, Bool) -> Void
+            unsafeBitCast(application.method(for: legacy), to: Function.self)(application, legacy, true)
+        }
+
+        /// A normal Mac window: title bar (holding the tabs), close, minimize and resize, movable,
+        /// no full screen. The close button asks the dock instead of closing the window.
+        static func prepare(_ window: NSObject, closeTarget: DesktopCloseTarget) {
             let titled = 1
-            let fullSizeContentView = 1 << 15
-            let wanted = titled | fullSizeContentView
-            typealias SetMask = @convention(c) (AnyObject, Selector, Int) -> Void
+            let closable = 1 << 1
+            let miniaturizable = 1 << 2
+            let resizable = 1 << 3
+            let wanted = titled | closable | miniaturizable | resizable
+            typealias SetInteger = @convention(c) (AnyObject, Selector, Int) -> Void
             let mask = NSSelectorFromString("setStyleMask:")
-            let isPrepared =
-                (window.value(forKey: "styleMask") as? Int) == wanted
-                && (window.value(forKey: "movable") as? Bool) == false
-            if isPrepared { return }
-            if window.responds(to: mask) {
-                unsafeBitCast(window.method(for: mask), to: SetMask.self)(window, mask, wanted)
+            if let current = window.value(forKey: "styleMask") as? Int, current & wanted != wanted,
+                window.responds(to: mask)
+            {
+                unsafeBitCast(window.method(for: mask), to: SetInteger.self)(window, mask, current | wanted)
             }
-            typealias SetFlag = @convention(c) (AnyObject, Selector, Bool) -> Void
-            for (name, value) in [
-                ("setMovable:", false), ("setTitlebarAppearsTransparent:", true),
-            ] {
-                let selector = NSSelectorFromString(name)
-                if window.responds(to: selector) {
-                    unsafeBitCast(window.method(for: selector), to: SetFlag.self)(
-                        window, selector, value)
-                }
+            let movable = NSSelectorFromString("setMovable:")
+            if (window.value(forKey: "movable") as? Bool) == false, window.responds(to: movable) {
+                typealias SetFlag = @convention(c) (AnyObject, Selector, Bool) -> Void
+                unsafeBitCast(window.method(for: movable), to: SetFlag.self)(window, movable, true)
             }
-            typealias SetVisibility = @convention(c) (AnyObject, Selector, Int) -> Void
-            let visibility = NSSelectorFromString("setTitleVisibility:")
-            if window.responds(to: visibility) {
-                unsafeBitCast(window.method(for: visibility), to: SetVisibility.self)(
-                    window, visibility, 1)
+            // NSWindowCollectionBehaviorFullScreenPrimary and FullScreenNone.
+            let fullScreenPrimary = 1 << 7
+            let fullScreenNone = 1 << 9
+            let behavior = NSSelectorFromString("setCollectionBehavior:")
+            if let current = window.value(forKey: "collectionBehavior") as? Int,
+                current & fullScreenNone == 0 || current & fullScreenPrimary != 0,
+                window.responds(to: behavior)
+            {
+                unsafeBitCast(window.method(for: behavior), to: SetInteger.self)(
+                    window, behavior, (current & ~fullScreenPrimary) | fullScreenNone)
             }
+            retargetCloseButton(of: window, to: closeTarget)
+        }
+
+        private static func retargetCloseButton(of window: NSObject, to closeTarget: DesktopCloseTarget) {
             typealias Button = @convention(c) (AnyObject, Selector, Int) -> AnyObject?
-            let button = NSSelectorFromString("standardWindowButton:")
-            if window.responds(to: button) {
-                for kind in 0...2 {
-                    let control = unsafeBitCast(window.method(for: button), to: Button.self)(
-                        window, button, kind)
-                    (control as? NSObject)?.setValue(true, forKey: "hidden")
-                }
-            }
+            let buttonSelector = NSSelectorFromString("standardWindowButton:")
+            guard window.responds(to: buttonSelector),
+                let button = unsafeBitCast(window.method(for: buttonSelector), to: Button.self)(
+                    window, buttonSelector, 0) as? NSObject
+            else { return }
+            let setTarget = NSSelectorFromString("setTarget:")
+            let setAction = NSSelectorFromString("setAction:")
+            guard button.responds(to: setTarget), button.responds(to: setAction) else { return }
+            if (button.value(forKey: "target") as AnyObject?) === closeTarget { return }
+            button.perform(setTarget, with: closeTarget)
+            typealias SetAction = @convention(c) (AnyObject, Selector, Selector) -> Void
+            unsafeBitCast(button.method(for: setAction), to: SetAction.self)(
+                button, setAction, #selector(DesktopCloseTarget.closeRequested(_:)))
         }
     }
 #endif
