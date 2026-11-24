@@ -155,13 +155,19 @@ extension CamerasMapping {
     extension PairingWizard {
         /// The wizard on the shared pair page with its actions: Continue connects the selection; a
         /// failure's Try again goes back to choosing and calls `rescan` (Open Settings when only
-        /// Settings can fix it); Back and Cancel stop any connect and call `onDone`.
+        /// Settings can fix it); Back and Cancel stop any connect and call `onDone`. On a computer
+        /// `host`, `connect` takes Continue's sighting (onto the camera network, `stationNetwork`)
+        /// and `content` shows under the page (the network line and its sheet).
         @MainActor
-        public func flow(_ model: CamerasModel, onDone: @escaping () -> Void, rescan: @escaping () -> Void)
+        public func flow(
+            _ model: CamerasModel, host: HostDevice = .current, stationNetwork: String? = nil,
+            connect: ((CamerasModel.Sighting) -> Void)? = nil, content: AnyView = AnyView(EmptyView()),
+            onDone: @escaping () -> Void, rescan: @escaping () -> Void
+        )
             -> IntegrationPairingFlow
         {
             IntegrationPairingFlow(
-                presentation: CamerasMapping.wizard(model, self),
+                presentation: CamerasMapping.wizard(model, self, host: host, stationNetwork: stationNetwork),
                 onSelect: { id in if model.attempts.isEmpty { model.selection = id } },
                 onPrimary: {
                     guard model.attempts.isEmpty else { return }
@@ -172,14 +178,14 @@ extension CamerasMapping {
                         if let recorded { model.dismissFailure(recorded.target.cameraID) }
                         rescan()
                     } else if let sighting {
-                        model.connect(sighting)
+                        if let connect { connect(sighting) } else { model.connect(sighting) }
                     }
                 },
                 onBack: {
                     model.cancelAll()
                     onDone()
                 },
-                content: AnyView(EmptyView()))
+                content: content)
         }
     }
 #endif

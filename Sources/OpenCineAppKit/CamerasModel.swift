@@ -208,6 +208,19 @@ public final class CamerasModel {
         start(.nearby(sighting.camera), on: sighting.integration)
     }
 
+    /// Connects a sighting straight onto a new route (a computer's camera network), as an added
+    /// setup: a saved camera's sighting adds it to its record, any other gets a record made from
+    /// the sighting. The attempt runs under the sighting's camera id, as `connect(_:)` does.
+    public func connect(_ sighting: Sighting, onto draft: RouteDraft) {
+        let id = sighting.camera.savedID ?? sighting.camera.id
+        let record =
+            saved.first { $0.id == id }
+            ?? SavedCamera(
+                id: id, integration: sighting.integration, advertisedName: sighting.camera.name,
+                model: sighting.camera.model)
+        start(.addRoute(record, draft), on: sighting.integration)
+    }
+
     /// Provisions a new route on a saved camera (from an add-route slot).
     public func addRoute(_ draft: RouteDraft, to camera: SavedCamera) {
         start(.addRoute(camera, draft), on: camera.integration)

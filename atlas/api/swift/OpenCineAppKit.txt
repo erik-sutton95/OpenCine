@@ -196,6 +196,7 @@ case ShellModel.Route.monitor
 case ShellModel.Route.pair
 case StationNetworkSetupContext.camera(OpenCineCore.SavedCamera)
 case StationNetworkSetupContext.multiview
+class CameraNetworkPairing: Observable, Sendable
 class CameraSettingsPresetStore: Observable, Sendable
 class CameraSettingsPresetsModel: Observable, Sendable
 class CamerasModel: Observable, Sendable
@@ -363,6 +364,10 @@ extension SwiftUICore.View
 func AddSetupChooser.select(_: Swift.String, onSelect: (AddSetupOption) -> Swift.Void) -> Swift.Bool
 func BodyRecordsV0.cameras(in: Foundation.Data) -> [OpenCineCore.LegacyCamera]?
 func BodyRecordsV0.patched(_: Foundation.Data?, to: [OpenCineCore.SavedCamera]) -> Foundation.Data?
+func CameraNetworkPairing.cancel() -> ()
+func CameraNetworkPairing.change() -> ()
+func CameraNetworkPairing.chose(_: OpenCineCore.StationNetwork, in: CamerasModel) -> ()
+func CameraNetworkPairing.pair(_: CamerasModel.Sighting, in: CamerasModel) async -> ()
 func CameraNetworkStore.load() -> CameraNetworkChoice?
 func CameraNetworkStore.save(_: CameraNetworkChoice) -> ()
 func CameraSettingsPresetStore.delete(id: Swift.String, scope: Swift.String) -> ()
@@ -376,6 +381,7 @@ func CamerasModel.beginPairing() -> ()
 func CamerasModel.cancel(_: Swift.String) -> ()
 func CamerasModel.cancelAll() -> ()
 func CamerasModel.connect(_: CamerasModel.Sighting) -> ()
+func CamerasModel.connect(_: CamerasModel.Sighting, onto: OpenCineCore.RouteDraft) -> ()
 func CamerasModel.connect(_: OpenCineCore.SavedCamera, route: OpenCineCore.ConnectionRouteID?) -> ()
 func CamerasModel.defaultRoute(of: OpenCineCore.SavedCamera) -> OpenCineCore.ConnectionRouteID?
 func CamerasModel.discoveryMode(of: any OpenCineCore.CameraIntegration) -> OpenCineCore.DiscoveryMode?
@@ -894,7 +900,7 @@ func OperatorConsent.confirm(_: Swift.String) -> ()
 func OperatorConsent.present(_: OperatorConsentRequest, source: Swift.AnyHashable, isCurrent: () -> Swift.Bool) -> ()
 func OperatorConsent.present(_: any OpenCineCore.ConfirmationPrompt, source: Swift.AnyHashable, isCurrent: () -> Swift.Bool) -> ()
 func OperatorConsent.retire(source: Swift.AnyHashable?) -> ()
-func PairingWizard.flow(_: CamerasModel, onDone: () -> Swift.Void, rescan: () -> Swift.Void) -> IntegrationPairingFlow
+func PairingWizard.flow(_: CamerasModel, host: OpenCineCore.HostDevice, stationNetwork: Swift.String?, connect: ((CamerasModel.Sighting) -> Swift.Void)?, content: SwiftUI.AnyView, onDone: () -> Swift.Void, rescan: () -> Swift.Void) -> IntegrationPairingFlow
 func ProblemReporting.discard() throws -> ()
 func ProblemReporting.submit(message: Swift.String, email: Swift.String, diagnostics: Swift.String?, images: [ProblemReportImage]) throws -> ()
 func ProblemReporting.tick(now: Foundation.Date) -> ()
@@ -977,6 +983,8 @@ init AppShell(model: ShellModel, brand: ShellBrand, actions: ShellActions, safeA
 init AppShell(model: ShellModel, brand: ShellBrand, actions: ShellActions, safeArea: ((SwiftUI.GeometryProxy) -> SwiftUI.EdgeInsets)?, pairingFlow: IntegrationPairingFlow?, coverPresentation: ShellCoverPresentation, monitor: (ShellModel.Monitor) -> Monitor, page: (ShellModel.Cover) -> Page)<Monitor, Page, PrePage where Monitor : SwiftUI.View, Page : SwiftUI.View, PrePage == SwiftUI.EmptyView>
 init BodyRecordsV0(integration: OpenCineCore.IntegrationID, dates: BodyRecordsV0.Dates)
 init CameraNetworkChoice(network: Swift.String)
+init CameraNetworkPairing(store: CameraNetworkStore, password: (Swift.String) -> Swift.String?, currentNetwork: () async -> Swift.String?)
+init CameraNetworkPairing.Ask(suggested: Swift.String?)
 init CameraNetworkStore(defaults: Foundation.UserDefaults, key: Swift.String)
 init CameraSettingsPresetStore(storage: Foundation.UserDefaults, prefix: Swift.String)
 init CameraSettingsPresetsModel(store: CameraSettingsPresetStore, shell: ShellModel, admission: () -> OpenCineCore.CommandDispatchAdmission?)
@@ -1875,6 +1883,7 @@ struct AppIntegration
 struct AppShell<Monitor, Page, PrePage where Monitor : SwiftUI.View, Page : SwiftUI.View, PrePage : SwiftUI.View>: Sendable, View
 struct BodyRecordsV0: LegacySavedCameraCodec, Sendable
 struct CameraNetworkChoice: Decodable, Encodable, Equatable, Sendable
+struct CameraNetworkPairing.Ask: Equatable, Identifiable, Sendable
 struct CameraNetworkStore
 struct CamerasModel.Attempt
 struct CamerasModel.Failure
@@ -2091,6 +2100,10 @@ var BodyRecordsV0.dates: BodyRecordsV0.Dates
 var BodyRecordsV0.heldExtras: Swift.Set<Swift.String>
 var BodyRecordsV0.integration: OpenCineCore.IntegrationID
 var CameraNetworkChoice.network: Swift.String
+var CameraNetworkPairing.Ask.id: Swift.String
+var CameraNetworkPairing.Ask.suggested: Swift.String?
+var CameraNetworkPairing.asking: CameraNetworkPairing.Ask?
+var CameraNetworkPairing.network: Swift.String?
 var CameraSettingsPresetStore.revision: Swift.Int
 var CameraSettingsPresetsModel.canRecall: Swift.Bool
 var CameraSettingsPresetsModel.canSave: Swift.Bool
