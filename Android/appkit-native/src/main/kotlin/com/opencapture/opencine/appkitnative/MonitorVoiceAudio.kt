@@ -19,18 +19,10 @@ internal class MonitorVoiceAudio : Closeable {
     private val microphone = StreamMicrophone(SAMPLE_RATE, channels = 1)
     private val writer = pipe[1].fileDescriptor
 
-    init {
-        try {
-            val flags = Os.fcntlInt(writer, OsConstants.F_GETFL, 0)
-            Os.fcntlInt(writer, OsConstants.F_SETFL, flags or OsConstants.O_NONBLOCK)
-        } catch (error: Exception) {
-            close()
-            throw error
-        }
-    }
-
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun configure(intent: Intent) {
+        val flags = Os.fcntlInt(writer, OsConstants.F_GETFL, 0)
+        Os.fcntlInt(writer, OsConstants.F_SETFL, flags or OsConstants.O_NONBLOCK)
         intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE, pipe[0])
         intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
         intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
