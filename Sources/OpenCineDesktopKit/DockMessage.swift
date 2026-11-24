@@ -15,18 +15,36 @@ public struct WindowFrame: Codable, Hashable, Sendable {
 }
 
 extension WindowFrame {
-    /// The frame to open at, given the visible frames of the attached screens: `self` while at least
-    /// 100 by 100 points of it lie on one screen, otherwise a default-sized frame (no larger than the
-    /// screen) centred on the first screen. With no screens known, `self`.
+    /// The height of the strip along the top edge that must stay on a screen: the title bar, which
+    /// holds the tabs and is where the window is dragged.
+    public static let titleBarHeight = 44.0
+
+    /// The frame to open at, given the visible frames of the attached screens (AppKit coordinates,
+    /// origin at the bottom left). Kept while its title bar lies on one screen, at least 100 points
+    /// wide; clipped to that screen when larger than it, keeping the top edge. Otherwise a
+    /// default-sized frame (no larger than the screen) centred on the first screen. With no screens
+    /// known, `self`.
     public func fitted(onto screens: [WindowFrame], defaultWidth: Double, defaultHeight: Double)
         -> WindowFrame
     {
         guard let main = screens.first else { return self }
-        let minimumVisible = 100.0
-        for screen in screens {
+        let top = y + height
+        let titleBarBottom = top - Self.titleBarHeight
+        let home = screens.first { screen in
             let overlapWidth = min(x + width, screen.x + screen.width) - max(x, screen.x)
-            let overlapHeight = min(y + height, screen.y + screen.height) - max(y, screen.y)
-            if overlapWidth >= minimumVisible, overlapHeight >= minimumVisible { return self }
+            return overlapWidth >= 100 && titleBarBottom >= screen.y && top <= screen.y + screen.height
+        }
+        if let home {
+            var kept = self
+            if kept.width > home.width {
+                kept.width = home.width
+                kept.x = home.x
+            }
+            if kept.height > home.height {
+                kept.height = top - home.y
+                kept.y = home.y
+            }
+            return kept
         }
         let fittedWidth = min(defaultWidth, main.width)
         let fittedHeight = min(defaultHeight, main.height)
@@ -50,16 +68,24 @@ public struct DockTab: Codable, Hashable, Sendable {
     public var id: String
     public var displayName: String
     public var state: State
+    /// The module app's bundle identifier, so the window that is left can hand keyboard focus to the
+    /// one that comes in (macOS lets an app take focus only when the active one yields it).
+    public var bundleID: String?
 
-    public init(id: String, displayName: String, state: State) {
+    public init(id: String, displayName: String, state: State, bundleID: String? = nil) {
         self.id = id
         self.displayName = displayName
         self.state = state
+        self.bundleID = bundleID
     }
 }
 
 /// A line at the trailing end of the tab bar, such as the driver needing approval.
 public struct DockNotice: Codable, Hashable, Sendable {
+    /// The System Settings page where the owner turns the camera driver on.
+    public static let driverSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
+
     public var text: String
     /// Clicking it opens the system settings where the camera driver is turned on.
     public var opensDriverSettings: Bool

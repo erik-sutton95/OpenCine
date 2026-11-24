@@ -32,7 +32,12 @@ final class DockModel {
     private(set) var coordinator = DockWindowCoordinator(selectedID: nil, frame: DockModel.savedFrame())
     /// When each pending `show` was sent, for the switch time in the log.
     @ObservationIgnored private var showSent: [String: (at: ContinuousClock.Instant, token: UUID)] = [:]
+    /// When the owner clicked each tab not yet on screen, for the switch time in the log.
+    @ObservationIgnored private var switchRequested: [String: ContinuousClock.Instant] = [:]
     @ObservationIgnored private var quitting = false
+    @ObservationIgnored private var startCheckPending = false
+    /// How long a launching module counts as on its way before the dock shows its own window.
+    private static let startGrace: Duration = .seconds(10)
     /// Called after anything that can change whether the dock's own window is needed.
     @ObservationIgnored var onWindowStateChange: () -> Void = {}
     /// A module's close button: the dock quits, asking first while an input is live.
@@ -40,11 +45,31 @@ final class DockModel {
 
     var selectedID: String? { coordinator.selectedID }
 
-    /// True while no module can show the tabs: none installed, or none running and none starting.
+    /// True while no module can show the tabs: none installed, or none running and none that
+    /// started in the last 10 seconds (a module that never reports ready does not hide the dock).
     var needsFallbackWindow: Bool {
         guard !quitting else { return false }
         if modules.isEmpty { return true }
-        return coordinator.needsFallbackWindow && !modules.contains { $0.phase == .starting }
+        return coordinator.needsFallbackWindow && !modules.contains(where: isStartingInGrace)
+    }
+
+    private func isStartingInGrace(_ module: ModuleProcess) -> Bool {
+        guard module.phase == .starting, let startedAt = module.startedAt else { return false }
+        return ContinuousClock.now - startedAt < Self.startGrace
+    }
+
+    /// Tells the app the window state may have changed, and looks again when a starting module's
+    /// grace runs out.
+    private func windowStateChanged() {
+        onWindowStateChange()
+        guard !startCheckPending, modules.contains(where: isStartingInGrace) else { return }
+        startCheckPending = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: Self.startGrace + .milliseconds(100))
+            guard let self else { return }
+            self.startCheckPending = false
+            self.windowStateChanged()
+        }
     }
 
     func load() {
@@ -56,7 +81,7 @@ final class DockModel {
         } catch {
             // Never rewrite a table we could not read: saved scenes depend on its assignments.
             problem = "The camera input table could not be read. Inputs are unavailable until it is repaired."
-            onWindowStateChange()
+            windowStateChanged()
             return
         }
         var processes: [ModuleProcess] = []
@@ -92,7 +117,7 @@ final class DockModel {
         observeDriver()
         DriverSlotTableChannel.keepDelivered(table)
         for module in modules { module.start() }
-        onWindowStateChange()
+        windowStateChanged()
     }
 
     /// The owner chose a tab, in a module's tab bar or the dock's own window. A stopped module is
@@ -101,9 +126,11 @@ final class DockModel {
         guard let module = modules.first(where: { $0.id == id }) else { return }
         if module.phase == .crashed || module.phase == .stopped { module.start() }
         UserDefaults.standard.set(id, forKey: Self.selectedKey)
-        perform(coordinator.select(id))
+        let commands = coordinator.select(id)
+        // The tabs first, so no window comes in with the old selection drawn.
         refreshTabs()
-        onWindowStateChange()
+        perform(commands)
+        windowStateChanged()
     }
 
     /// The owner asked for OpenCine, such as by clicking its Dock icon.
@@ -136,24 +163,32 @@ final class DockModel {
         case .status:
             refreshTabs()
         case .selectTab(let id):
+            if id != coordinator.selectedID { switchRequested[id] = .now }
             select(id)
         case .windowFrame(let frame, let final):
             perform(coordinator.windowMoved(by: module.id, to: frame))
-            if final, module.id == coordinator.selectedID { Self.save(coordinator.frame) }
+            // Saved only when the coordinator took it, from the window on screen.
+            if final, coordinator.frame == frame { Self.save(frame) }
         case .shown:
-            if let sent = showSent.removeValue(forKey: module.id) {
+            let sent = showSent.removeValue(forKey: module.id)
+            if let clicked = switchRequested.removeValue(forKey: module.id) {
                 Self.log.info(
-                    "Tab \(module.id, privacy: .public) on screen after \(Self.milliseconds(since: sent.at)) ms")
+                    "Tab \(module.id, privacy: .public) on screen \(Self.milliseconds(since: clicked)) ms after the click")
+            } else if let sent {
+                Self.log.info(
+                    "Tab \(module.id, privacy: .public) on screen \(Self.milliseconds(since: sent.at)) ms after show")
             }
             perform(coordinator.moduleShown(module.id))
         case .closeRequested:
             onCloseRequested()
         case nil:
             showSent[module.id] = nil
-            perform(coordinator.moduleStopped(module.id))
+            switchRequested[module.id] = nil
+            let commands = coordinator.moduleStopped(module.id)
             refreshTabs()
+            perform(commands)
         }
-        onWindowStateChange()
+        windowStateChanged()
     }
 
     /// Sends the coordinator's instructions. A `show` starts the switch timeout; while the dock is
@@ -182,7 +217,9 @@ final class DockModel {
     /// Sends the tabs, their states, the selection and the driver notice to every running module.
     private func refreshTabs() {
         let tabs = modules.map {
-            DockTab(id: $0.id, displayName: $0.module.manifest.displayName, state: Self.tabState(of: $0))
+            DockTab(
+                id: $0.id, displayName: $0.module.manifest.displayName, state: Self.tabState(of: $0),
+                bundleID: $0.bundleID)
         }
         let message = DockMessage.tabs(tabs, selectedID: coordinator.selectedID, notice: notice)
         for module in modules where module.phase == .running { module.send(message) }

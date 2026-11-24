@@ -37,7 +37,9 @@
         private var awaitingShown = false
         private let tabBar = DesktopTabBarModel()
         private lazy var toolbar = DesktopTabToolbar(model: tabBar)
-        private lazy var closeTarget = DesktopCloseTarget { [weak self] in self?.send(.closeRequested) }
+        private lazy var closeTarget = DesktopCloseTarget { [weak self] in self?.closeRequested() }
+        /// The dock's bundle identifier, so this module can hand it keyboard focus for its alert.
+        private let dockBundleID: String?
         /// Frame reports: at most one per 100 ms while the window moves, and a final one once it settles.
         private var lastFrameReport: (frame: WindowFrame, at: UInt64)?
         private var finalFrameTimer: Timer?
@@ -48,12 +50,14 @@
                 let number = environment["OPENCINE_MODULE_SLOT"].flatMap(Int.init),
                 let slot = VirtualCameraSlot(number: number)
             else { return nil }
-            return DesktopModuleHost(moduleID: moduleID, slot: slot)
+            return DesktopModuleHost(
+                moduleID: moduleID, slot: slot, dockBundleID: environment["OPENCINE_DOCK_BUNDLE_ID"])
         }
 
-        private init(moduleID: String, slot: VirtualCameraSlot) {
+        private init(moduleID: String, slot: VirtualCameraSlot, dockBundleID: String?) {
             self.moduleID = moduleID
             self.slot = slot
+            self.dockBundleID = dockBundleID
             output = VirtualCameraOutput(slot: slot)
         }
 
@@ -146,31 +150,54 @@
         /// window keeps whatever frame the owner gives it.
         private func holdWindow() {
             toolbar.installOnConnectedScenes()
-            for window in AppKitBridge.windows {
+            let windows = AppKitBridge.windows
+            // Forget windows that are gone, so a new one with a reused address is placed too.
+            placedWindows.formIntersection(windows.map(ObjectIdentifier.init))
+            for window in windows {
                 AppKitBridge.prepare(window, closeTarget: closeTarget)
                 let fresh = placedWindows.insert(ObjectIdentifier(window)).inserted
                 if fresh || !isShownTab, let instructedFrame {
                     AppKitBridge.setFrame(instructedFrame, of: window)
                 }
             }
-            switch windowInstruction {
-            case .show: AppKitBridge.keepShown()
-            case .hide: AppKitBridge.hideAll(includingMinimized: false)
-            default: break
+            // Until the dock says otherwise the window stays out of sight, so a module the dock has
+            // just launched does not flash at the frame the system restored.
+            if isShownTab {
+                AppKitBridge.keepShown()
+            } else {
+                AppKitBridge.hideAll(includingMinimized: false)
             }
             confirmShownIfVisible()
         }
 
+        /// Answers `shown` once the window is on screen and has drawn: the next main run loop turn,
+        /// after this turn's drawing has been committed. Only then may the dock hide the old window.
         private func confirmShownIfVisible() {
             guard awaitingShown, isShownTab, AppKitBridge.anyWindowVisible else { return }
             awaitingShown = false
-            send(.shown)
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, self.isShownTab else { return }
+                    self.send(.shown)
+                }
+            }
         }
 
         private func selectTab(_ id: String) {
             // A click right after a drag: the dock gets the settled frame before it switches.
             if finalFrameTimer?.isValid == true { reportFrame(final: true) }
+            // macOS lets the next module take keyboard focus only when this one, the active app,
+            // yields it.
+            if id != tabBar.selectedID, let bundleID = tabBar.tabs.first(where: { $0.id == id })?.bundleID {
+                AppKitBridge.yieldActivation(toBundleID: bundleID)
+            }
             send(.selectTab(id: id))
+        }
+
+        /// The dock asks before quitting while an input is live, so it gets keyboard focus first.
+        private func closeRequested() {
+            if let dockBundleID { AppKitBridge.yieldActivation(toBundleID: dockBundleID) }
+            send(.closeRequested)
         }
 
         private func observeWindowFrames() {
@@ -360,6 +387,14 @@
             for window in windows where isVisible(window) || (includingMinimized && isMiniaturized(window)) {
                 window.perform(NSSelectorFromString("orderOut:"), with: nil)
             }
+        }
+
+        /// Lets another app take keyboard focus from this one (macOS 14 and later).
+        static func yieldActivation(toBundleID bundleID: String) {
+            guard let application else { return }
+            let selector = NSSelectorFromString("yieldActivationToApplicationWithBundleIdentifier:")
+            guard application.responds(to: selector) else { return }
+            application.perform(selector, with: bundleID as NSString)
         }
 
         private static func activate() {

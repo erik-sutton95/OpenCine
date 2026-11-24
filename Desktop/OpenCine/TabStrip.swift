@@ -33,7 +33,7 @@ struct TabStrip: View {
                 if let notice = model.notice {
                     if notice.opensDriverSettings {
                         Button(notice.text) {
-                            NSWorkspace.shared.open(DriverController.approvalSettingsURL)
+                            NSWorkspace.shared.open(DockNotice.driverSettingsURL)
                         }
                         .font(.system(size: 12, weight: .medium))
                         .accessibilityHint("Opens System Settings. Turn on OpenCine Camera under Camera Extensions.")

@@ -113,7 +113,7 @@ import Testing
         let dock: [DockMessage] = [
             .tabs(
                 [
-                    DockTab(id: "a", displayName: "A", state: .live),
+                    DockTab(id: "a", displayName: "A", state: .live, bundleID: "com.example.a"),
                     DockTab(id: "b", displayName: "B", state: .stopped),
                 ], selectedID: "a",
                 notice: DockNotice(text: "Turn on camera driver", opensDriverSettings: true)),
@@ -129,6 +129,11 @@ import Testing
         let dockReceived: [DockMessage] = try LengthPrefixedJSON.decodeAll(&dockWire)
         let moduleReceived: [ModuleMessage] = try LengthPrefixedJSON.decodeAll(&moduleWire)
         #expect(dockReceived == dock)
+        // A dock from before the bundle identifier still decodes.
+        let older = Data(#"{"id":"a","displayName":"A","state":{"live":{}}}"#.utf8)
+        #expect(
+            try JSONDecoder().decode(DockTab.self, from: older)
+                == DockTab(id: "a", displayName: "A", state: .live))
         #expect(moduleReceived == module)
     }
 

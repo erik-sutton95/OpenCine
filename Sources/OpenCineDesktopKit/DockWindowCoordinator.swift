@@ -79,9 +79,11 @@ public struct DockWindowCoordinator: Sendable {
         hideAllBut(id)
     }
 
-    /// The selected module's window moved or resized: the hidden ones follow, out of sight.
+    /// The window on screen moved or resized: the hidden ones follow, out of sight. That window is
+    /// the selected module's, or while the selected one is not running, the only one on screen.
     public mutating func windowMoved(by id: String, to frame: WindowFrame) -> [Command] {
-        guard id == selectedID, isRunning(id) else { return [] }
+        let owner = isRunning(selectedID) ? selectedID : visibleRunning.count == 1 ? visibleRunning.first : nil
+        guard id == owner else { return [] }
         self.frame = frame
         return running.filter { $0 != id }.map { Command(moduleID: $0, message: .place(frame: frame)) }
     }

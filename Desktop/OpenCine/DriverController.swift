@@ -59,10 +59,6 @@ final class DriverController: NSObject, @preconcurrency OSSystemExtensionRequest
         watchForApproval()
     }
 
-    /// The Settings page where the owner turns the driver on.
-    static let approvalSettingsURL = URL(
-        string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
-
     private func watchForApproval() {
         guard approvalPoll == nil else { return }
         approvalPoll = Task { [weak self] in

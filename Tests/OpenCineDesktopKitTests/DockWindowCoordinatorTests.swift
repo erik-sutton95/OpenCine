@@ -114,6 +114,25 @@ import Testing
         #expect(c.windowMoved(by: "a", to: f2).isEmpty)
     }
 
+    /// While the selected tab is not running, the window on screen is the stand-in: the owner can
+    /// still drag it, and the other windows (and the selected one, once ready) follow.
+    @Test func movesFromTheStandInAreKeptWhileTheSelectedModuleIsNotRunning() {
+        var c = running(["a", "b"], selected: "a")
+        _ = c.moduleStopped("b")
+        _ = c.select("b")
+        #expect(c.windowMoved(by: "a", to: f2).isEmpty)
+        #expect(c.frame == f2)
+        #expect(c.moduleReady("b") == [Command(moduleID: "b", message: .show(frame: f2))])
+    }
+
+    @Test func movesFromAHiddenModuleAreIgnoredWhileTheSelectedModuleIsNotRunning() {
+        var c = running(["a", "b", "c"], selected: "a")
+        _ = c.moduleStopped("c")
+        _ = c.select("c")
+        #expect(c.windowMoved(by: "b", to: f2).isEmpty)
+        #expect(c.frame == f1)
+    }
+
     @Test func nothingRunningAtLaunchNeedsFallback() {
         let c = DockWindowCoordinator(selectedID: "a", frame: f1)
         #expect(c.needsFallbackWindow)

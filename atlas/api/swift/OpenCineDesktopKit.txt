@@ -45,7 +45,7 @@ func VirtualCameraSlotTable.assign(moduleID: Swift.String, displayName: Swift.St
 func VirtualCameraSlotTable.slot(forModule: Swift.String) -> VirtualCameraSlot?
 func WindowFrame.fitted(onto: [WindowFrame], defaultWidth: Swift.Double, defaultHeight: Swift.Double) -> WindowFrame
 init DockNotice(text: Swift.String, opensDriverSettings: Swift.Bool)
-init DockTab(id: Swift.String, displayName: Swift.String, state: DockTab.State)
+init DockTab(id: Swift.String, displayName: Swift.String, state: DockTab.State, bundleID: Swift.String?)
 init DockWindowCoordinator(selectedID: Swift.String?, frame: WindowFrame)
 init DockWindowCoordinator.Command(moduleID: Swift.String, message: DockMessage)
 init ModuleManifest(id: Swift.String, displayName: Swift.String, inputName: Swift.String, version: Swift.String, minimumDockVersion: Swift.String, bundleName: Swift.String)
@@ -74,6 +74,7 @@ static func VirtualCameraSlotTableFile.load(from: Foundation.URL) throws -> Virt
 static func VirtualCameraSlotTableFile.save(_: VirtualCameraSlotTable, to: Foundation.URL) throws -> ()
 static func VirtualCameraSlotTableWire.decode(_: Swift.String) -> VirtualCameraSlotTable?
 static func VirtualCameraSlotTableWire.encode(_: VirtualCameraSlotTable) throws -> Swift.String
+static let DockNotice.driverSettingsURL: Foundation.URL
 static let VirtualCameraSlot.all: [VirtualCameraSlot]
 static let VirtualCameraSlot.count: Swift.Int
 static let VirtualCameraSlotTable.currentVersion: Swift.Int
@@ -81,6 +82,7 @@ static let VirtualCameraSlotTableWire.maximumBytes: Swift.Int
 static let VirtualCameraSlotTableWire.maximumNameLength: Swift.Int
 static let VirtualCameraSlotTableWire.propertyName: Swift.String
 static let VirtualCameraSlotTableWire.selector: Swift.String
+static let WindowFrame.titleBarHeight: Swift.Double
 struct DockNotice: Decodable, Encodable, Equatable, Hashable, Sendable
 struct DockTab: Decodable, Encodable, Equatable, Hashable, Sendable
 struct DockWindowCoordinator.Command: Equatable, Hashable, Sendable
@@ -94,6 +96,7 @@ struct VirtualCameraSlotTable: Decodable, Encodable, Equatable, Sendable
 struct WindowFrame: Decodable, Encodable, Equatable, Hashable, Sendable
 var DockNotice.opensDriverSettings: Swift.Bool
 var DockNotice.text: Swift.String
+var DockTab.bundleID: Swift.String?
 var DockTab.displayName: Swift.String
 var DockTab.id: Swift.String
 var DockTab.state: DockTab.State

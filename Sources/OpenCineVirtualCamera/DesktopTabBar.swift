@@ -71,15 +71,13 @@
     /// The dock's notice at the trailing end of the title bar, such as the driver awaiting approval.
     @available(macCatalyst 17.0, *)
     struct DesktopTabNotice: View {
-        static let driverSettingsURL = URL(
-            string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
         let model: DesktopTabBarModel
 
         var body: some View {
             Group {
                 if let notice = model.notice, !notice.text.isEmpty {
                     if notice.opensDriverSettings {
-                        Button(notice.text) { UIApplication.shared.open(Self.driverSettingsURL) }
+                        Button(notice.text) { UIApplication.shared.open(DockNotice.driverSettingsURL) }
                             .font(.system(size: 12, weight: .medium))
                             .accessibilityHint(
                                 "Opens System Settings. Turn on OpenCine Camera under Camera Extensions.")
@@ -107,7 +105,7 @@
 
         private let model: DesktopTabBarModel
         /// Hosting controllers stay alive as long as their views sit in a toolbar.
-        private var hosts: [UIViewController] = []
+        private var hosts: [ObjectIdentifier: [UIViewController]] = [:]
         private var toolbars: [ObjectIdentifier: NSToolbar] = [:]
 
         init(model: DesktopTabBarModel) {
@@ -117,9 +115,13 @@
         /// Installs the bar on every connected window scene that does not have it yet. Cheap enough
         /// to call on a timer, which also puts it back if a scene update replaced the toolbar.
         func installOnConnectedScenes() {
-            for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
-                install(on: scene)
-            }
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            // Forget scenes that are gone, with their toolbars.
+            let connected = Set(scenes.map(ObjectIdentifier.init))
+            toolbars = toolbars.filter { connected.contains($0.key) }
+            let live = Set(toolbars.values.map(ObjectIdentifier.init))
+            hosts = hosts.filter { live.contains($0.key) }
+            for scene in scenes { install(on: scene) }
         }
 
         private func install(on scene: UIWindowScene) {
@@ -158,7 +160,7 @@
             // The item takes the view's own size, so the space after the tabs stays empty title bar.
             host.sizingOptions = .intrinsicContentSize
             host.view.backgroundColor = .clear
-            hosts.append(host)
+            hosts[ObjectIdentifier(toolbar), default: []].append(host)
             return NSUIViewToolbarItem(itemIdentifier: itemIdentifier, uiView: host.view)
         }
     }

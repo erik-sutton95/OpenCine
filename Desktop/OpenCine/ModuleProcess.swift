@@ -27,6 +27,10 @@ final class ModuleProcess: Identifiable {
     /// Every message from the module, and `nil` once its process has ended. The dock's window
     /// coordinator decides what each one means for the windows.
     @ObservationIgnored var onEvent: (ModuleProcess, ModuleMessage?) -> Void = { _, _ in }
+    /// When the process was last launched, so the dock can tell a slow start from a stuck one.
+    @ObservationIgnored private(set) var startedAt: ContinuousClock.Instant?
+    /// The module app's bundle identifier, for handing it keyboard focus.
+    var bundleID: String? { Bundle(url: module.bundleURL)?.bundleIdentifier }
 
     init(module: InstalledModule, slot: VirtualCameraSlot) {
         id = module.manifest.id
@@ -62,6 +66,8 @@ final class ModuleProcess: Identifiable {
         var environment = ProcessInfo.processInfo.environment
         environment["OPENCINE_MODULE_ID"] = id
         environment["OPENCINE_MODULE_SLOT"] = String(slot.number)
+        // The module hands the dock keyboard focus before the dock asks to quit.
+        environment["OPENCINE_DOCK_BUNDLE_ID"] = Bundle.main.bundleIdentifier
         child.environment = environment
         child.standardInput = FileHandle(fileDescriptor: sockets[1], closeOnDealloc: true)
         if let log = Self.logFile(for: id) {
@@ -88,6 +94,7 @@ final class ModuleProcess: Identifiable {
             try child.run()
             process = child
             phase = .starting
+            startedAt = .now
             status = .idle
         } catch {
             phase = .crashed
@@ -154,8 +161,9 @@ final class ModuleProcess: Identifiable {
         if restartAfterExit {
             restartAfterExit = false
             phase = .stopped
-            onEvent(self, nil)
+            // Starting again first: the dock sees a module coming back, not a gap with no window.
             start()
+            onEvent(self, nil)
         } else if expectingExit {
             phase = .stopped
             onEvent(self, nil)
