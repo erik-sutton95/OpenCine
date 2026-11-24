@@ -55,8 +55,15 @@ public struct PairingWizard {
 
 @available(macOS 14, *)
 extension CamerasMapping {
-    /// The selected camera's connect as the wizard shows it; any running attempt makes it busy.
-    public static func wizard(_ model: CamerasModel, _ wizard: PairingWizard) -> CameraPairingPresentation {
+    /// The selected camera's connect as the wizard shows it; any running attempt makes it busy. On
+    /// a computer `host` the third step is the camera joining `stationNetwork` (the network this
+    /// computer is on), with no camera Wi-Fi join; elsewhere the words are the phone's.
+    public static func wizard(
+        _ model: CamerasModel, _ wizard: PairingWizard, host: HostDevice = .current, stationNetwork: String? = nil
+    ) -> CameraPairingPresentation {
+        let computer = host.isComputer
+        let network = stationNetwork ?? "your network"
+        let hostCard = computer ? "On \(host.thisDevice)" : "On iPhone"
         let selected = model.nearby.first { $0.id == model.selection }
         let cameraID = selected.map { ConnectTarget.nearby($0.camera).cameraID }
         let busy = !model.attempts.isEmpty
@@ -70,14 +77,19 @@ extension CamerasMapping {
             case 1: [
                 .init(title: "On the camera", icon: .camera, lines: wizard.approveLines),
                 .init(
-                    title: "On iPhone", icon: .phone,
+                    title: hostCard, icon: .phone,
                     lines: ["Wait here, we keep the Bluetooth link alive", "Don't force-quit the app"]),
             ]
             case 2: [
                 .init(title: "On the camera", icon: .camera, lines: wizard.joinLines),
                 .init(
-                    title: "On iPhone", icon: .phone,
-                    lines: ["Tap Join when iOS asks to join the camera network", LocalVPNFilter.joinWifiPhoneStep]),
+                    title: hostCard, icon: .phone,
+                    lines: [
+                        computer
+                            ? "Wait here while the camera joins \(network)"
+                            : "Tap Join when iOS asks to join the camera network",
+                        LocalVPNFilter.joinWifiPhoneStep,
+                    ]),
             ]
             default: wizard.vpnActive
                 ? [.init(title: "Check the connection", icon: .phone, lines: [LocalVPNFilter.wizardBanner])] : []
@@ -94,7 +106,10 @@ extension CamerasMapping {
             ? [
                 .init(title: "Bluetooth link", subtitle: name ?? "Camera connected", state: .complete, stateLabel: "OK"),
                 .init(
-                    title: "Camera Wi-Fi", subtitle: wizard.joinedNetwork ?? "Waiting for the camera network",
+                    title: computer ? "Your network" : "Camera Wi-Fi",
+                    subtitle: computer
+                        ? stationNetwork ?? "Waiting for the camera to join"
+                        : wizard.joinedNetwork ?? "Waiting for the camera network",
                     state: page > 2 ? .complete : .active, stateLabel: page > 2 ? "OK" : "JOINING"),
                 .init(
                     title: "Live picture", subtitle: page > 2 ? "Opening the video link…" : "Starts after Wi-Fi joins",
@@ -104,12 +119,20 @@ extension CamerasMapping {
             switch page {
             case 0: name.map { "Selected \($0)" } ?? "Choose the camera that matches your screen"
             case 1: "Nothing to type. Approve it on the camera"
-            case 2: "iOS asks to join the camera network"
+            case 2: computer ? "The camera joins \(network)" : "iOS asks to join the camera network"
             default: "Monitoring opens when the picture is ready"
             }
+        var titles = PairingWizard.titles
+        var rail = PairingWizard.rail
+        var bodies = wizard.bodies
+        if computer {
+            titles[2] = "Join your network"
+            rail[2] = "Your network"
+            if bodies.count > 2 { bodies[2] = "The camera joins \(network), the same network as \(host.thisDevice)." }
+        }
         return CameraPairingPresentation(
-            steps: zip(PairingWizard.titles, PairingWizard.rail).map { CameraPairingStep($0, $1) },
-            currentStep: page, title: PairingWizard.titles[page], body: wizard.bodies[page],
+            steps: zip(titles, rail).map { CameraPairingStep($0, $1) },
+            currentStep: page, title: titles[page], body: bodies[page],
             target: name ?? "Nothing selected yet", hint: hint,
             progress: failure == nil && (busy || model.scanning) ? wizard.label : nil,
             error: failure?.message,

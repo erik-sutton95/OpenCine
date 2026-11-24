@@ -129,5 +129,23 @@ import Testing
         #expect(StationNetworkSetupRules.security(of: "Venue", saved: saved, current: false) == false)
         #expect(StationNetworkSetupRules.security(of: "Venue", saved: saved, current: nil) == nil)
     }
-}
 
+    @Test func macOffersOnlyTheSharedWiFi() {
+        let routes = StationSetupRoute.offered(
+            on: .mac, hostRoutes: [.init(.infrastructureNetwork), .init(.phoneHotspot), .init(.cameraAccessPoint), .init(.usb)])
+        #expect(routes.map(\.kind) == [.infrastructureNetwork, .usb])
+        #expect(StationSetupRoute.offered(on: .mac, hostRoutes: [.init(.usb)]).map(\.kind) == [.infrastructureNetwork, .usb])
+    }
+
+    @Test func phoneRoutesAreUnchanged() {
+        let all: [StationSetupRoute] = [.init(.infrastructureNetwork), .init(.phoneHotspot), .init(.cameraAccessPoint)]
+        #expect(StationSetupRoute.offered(on: .iPhone, hostRoutes: all) == all)
+        #expect(StationSetupRoute.offered(on: .iPad, hostRoutes: all) == all)
+    }
+
+    @Test func newCameraRoutePerHost() {
+        #expect(StationSetupRoute.newCameraRoute(on: .mac) == .infrastructureNetwork)
+        #expect(StationSetupRoute.newCameraRoute(on: .iPhone) == .cameraAccessPoint)
+        #expect(StationSetupRoute.newCameraRoute(on: .iPad) == .cameraAccessPoint)
+    }
+}
