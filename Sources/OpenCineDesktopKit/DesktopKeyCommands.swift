@@ -93,6 +93,17 @@ public enum DesktopKeyCommands {
 public enum DesktopTake: Equatable, Sendable {
     case standby(timecode: String?)
     case recording(timecode: String?)
+    /// The monitor does not know whether the body records (no control link yet, or it dropped).
+    case unknown(timecode: String?)
+
+    /// The take from the monitor's recording state, nil while unknown.
+    public init(recording: Bool?, timecode: String?) {
+        switch recording {
+        case true?: self = .recording(timecode: timecode)
+        case false?: self = .standby(timecode: timecode)
+        case nil: self = .unknown(timecode: timecode)
+        }
+    }
 
     public enum Role: Equatable, Sendable {
         /// Standing by: the muted text colour.
@@ -103,7 +114,8 @@ public enum DesktopTake: Equatable, Sendable {
 
     /// What the toolbar prints and how it colours it.
     public struct Title: Equatable, Sendable {
-        public var state: String
+        /// Nil while the recording state is unknown: no state word, never a false STBY.
+        public var state: String?
         /// Nil when the camera reports none: the state shows alone, never a dash.
         public var timecode: String?
         public var role: Role
@@ -117,6 +129,7 @@ public enum DesktopTake: Equatable, Sendable {
         switch self {
         case .standby(let timecode): Title(state: "STBY", timecode: Self.shown(timecode), role: .muted)
         case .recording(let timecode): Title(state: "REC", timecode: Self.shown(timecode), role: .recording)
+        case .unknown(let timecode): Title(state: nil, timecode: Self.shown(timecode), role: .muted)
         }
     }
 
@@ -125,5 +138,32 @@ public enum DesktopTake: Equatable, Sendable {
             value.contains(where: \.isNumber)
         else { return nil }
         return value
+    }
+}
+
+/// The actions a window currently runs, and which monitor registered them. A monitor that leaves
+/// the screen clears only its own registration, so one that left after a newer one registered
+/// leaves the newer one's actions in place.
+public struct DesktopRegistry<Value> {
+    /// Who registered: one per monitor on screen.
+    public struct Owner: Hashable, Sendable {
+        let id: UUID
+        public init(_ id: UUID = UUID()) { self.id = id }
+    }
+
+    public private(set) var current: Value?
+    private var owner: Owner?
+
+    public init() {}
+
+    public mutating func register(_ value: Value, owner: Owner) {
+        current = value
+        self.owner = owner
+    }
+
+    public mutating func unregister(owner: Owner) {
+        guard self.owner == owner else { return }
+        current = nil
+        self.owner = nil
     }
 }

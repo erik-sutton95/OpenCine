@@ -416,6 +416,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
     @State private var compactTelemetryMinimumStatusTop: CGFloat = 0
     @Environment(\.monitorDesktopCommands) private var desktopCommands
+    /// This monitor, as the desktop window knows it: a monitor leaving clears only its own actions.
+    @State private var desktopOwner = UUID()
     /// Presses from a desktop window's record and display keys.
     @State private var recordPress = 0
     @State private var displayPress = 0
@@ -583,7 +585,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 if let tool = assist.configureTool, !assist.offers(tool) { assist.configureTool = nil }
             }
             .onDisappear { apply(lifecycle.close()); assist.liveCovered = false; unregisterDesktopCommands() }
-            .onChange(of: desktopRegistration, initial: true) { _, _ in registerDesktopCommands() }
+            // Again on every appearance (a cover over the monitor took it off screen) and change.
+            .onAppear { registerDesktopCommands() }
+            .onChange(of: desktopRegistration) { _, _ in registerDesktopCommands() }
             .onChange(of: recordPress) { _, _ in
                 // The capture button presses itself (`pressSignal`); an external recorder is asked here.
                 if !photo, let external = facts.record.external, admitted, recordEnabled { external.request() }
@@ -593,36 +597,33 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
 
     /// What the desktop window's toolbar and keys run changes with these.
     private struct DesktopRegistration: Equatable {
-        let target: ObjectIdentifier?
+        let desktop: Bool
         let identity: MonitorOperatorLiveIdentity
         let borrowed: Bool
         let photo: Bool
         let showsTimecode: Bool
     }
     private var desktopRegistration: DesktopRegistration {
-        .init(target: desktopCommands.map { ObjectIdentifier($0) }, identity: identity, borrowed: facts.borrowed,
+        .init(desktop: desktop && desktopCommands != nil, identity: identity, borrowed: facts.borrowed,
             photo: photo, showsTimecode: status.showsTimecode)
     }
     /// Registers Settings, Media, record, the display overlays and the take with a desktop window.
     private func registerDesktopCommands() {
-        guard desktop, let target = desktopCommands else { return }
+        guard desktop, let sink = desktopCommands else { return }
         let source = source, control = control
         let recordPress = $recordPress, displayPress = $displayPress
-        target.openSettings = { source.settings() }
-        target.openMedia = facts.borrowed ? nil : { source.media() }
-        target.toggleRecord = photo ? nil : { recordPress.wrappedValue += 1 }
-        target.toggleOverlays = { displayPress.wrappedValue += 1 }
         let liveClock = status.liveClock, showsTimecode = status.showsTimecode
-        target.readTake = {
-            let timecode = showsTimecode ? (liveClock?() ?? source.status().recording.timecode) : nil
-            return (control.isRecording == true, timecode)
-        }
-        target.applyMonitorLook(media: photo ? .image : .film)
+        sink.register(desktopOwner, { source.settings() }, facts.borrowed ? nil : { source.media() },
+            photo ? nil : { recordPress.wrappedValue += 1 }, { displayPress.wrappedValue += 1 },
+            {
+                // Recording nil while the body's state is unknown: the toolbar then claims nothing.
+                let timecode = showsTimecode ? (liveClock?() ?? source.status().recording.timecode) : nil
+                return (control.isRecording, timecode)
+            })
+        sink.applyMonitorLook(media: photo ? .image : .film)
     }
     private func unregisterDesktopCommands() {
-        guard let target = desktopCommands else { return }
-        target.openSettings = nil; target.openMedia = nil; target.toggleRecord = nil
-        target.toggleOverlays = nil; target.readTake = nil
+        desktopCommands?.unregister(desktopOwner)
     }
 
     private func apply(_ transition: MonitorInteractionTransition) {

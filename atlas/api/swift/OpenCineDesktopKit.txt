@@ -11,6 +11,7 @@ case DesktopTake.Role.muted
 case DesktopTake.Role.recording
 case DesktopTake.recording(Swift.String?)
 case DesktopTake.standby(Swift.String?)
+case DesktopTake.unknown(Swift.String?)
 case DockMessage.hide
 case DockMessage.place(WindowFrame)
 case DockMessage.quit
@@ -47,6 +48,8 @@ enum ModuleStatus: Decodable, Encodable, Equatable, Sendable
 enum VirtualCameraSlotTableError: Equatable, Error, Sendable
 enum VirtualCameraSlotTableFile
 enum VirtualCameraSlotTableWire
+func DesktopRegistry.register(_: Value, owner: DesktopRegistry<Value>.Owner)<Value> -> ()
+func DesktopRegistry.unregister(owner: DesktopRegistry<Value>.Owner)<Value> -> ()
 func DockWindowCoordinator.bringForward() -> [DockWindowCoordinator.Command]
 func DockWindowCoordinator.moduleReady(_: Swift.String) -> [DockWindowCoordinator.Command]
 func DockWindowCoordinator.moduleShown(_: Swift.String) -> [DockWindowCoordinator.Command]
@@ -60,6 +63,9 @@ func VirtualCameraSlotTable.assign(moduleID: Swift.String, displayName: Swift.St
 func VirtualCameraSlotTable.slot(forModule: Swift.String) -> VirtualCameraSlot?
 func WindowFrame.fitted(onto: [WindowFrame], defaultWidth: Swift.Double, defaultHeight: Swift.Double) -> WindowFrame
 init DesktopModifiers(rawValue: Swift.Int)
+init DesktopRegistry()<Value>
+init DesktopRegistry.Owner(_: Foundation.UUID)<Value>
+init DesktopTake(recording: Swift.Bool?, timecode: Swift.String?)
 init DockNotice(text: Swift.String, opensDriverSettings: Swift.Bool)
 init DockTab(id: Swift.String, displayName: Swift.String, state: DockTab.State, bundleID: Swift.String?)
 init DockWindowCoordinator(selectedID: Swift.String?, frame: WindowFrame)
@@ -109,6 +115,8 @@ static let VirtualCameraSlotTableWire.selector: Swift.String
 static let WindowFrame.titleBarHeight: Swift.Double
 struct DesktopKeyCommands.Key: Equatable, Sendable
 struct DesktopModifiers: Equatable, ExpressibleByArrayLiteral, Hashable, OptionSet, RawRepresentable, Sendable, SetAlgebra
+struct DesktopRegistry.Owner<Value>: Equatable, Hashable, Sendable
+struct DesktopRegistry<Value>
 struct DesktopTake.Title: Equatable, Sendable
 struct DockNotice: Decodable, Encodable, Equatable, Hashable, Sendable
 struct DockTab: Decodable, Encodable, Equatable, Hashable, Sendable
@@ -123,8 +131,9 @@ struct VirtualCameraSlotTable: Decodable, Encodable, Equatable, Sendable
 struct WindowFrame: Decodable, Encodable, Equatable, Hashable, Sendable
 var DesktopKeyCommands.Key.input: Swift.String
 var DesktopKeyCommands.Key.modifiers: DesktopModifiers
+var DesktopRegistry.current: Value?
 var DesktopTake.Title.role: DesktopTake.Role
-var DesktopTake.Title.state: Swift.String
+var DesktopTake.Title.state: Swift.String?
 var DesktopTake.Title.timecode: Swift.String?
 var DesktopTake.isRecording: Swift.Bool
 var DesktopTake.title: DesktopTake.Title

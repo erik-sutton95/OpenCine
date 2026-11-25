@@ -76,5 +76,25 @@ import Testing
         #expect(DesktopTake.standby(timecode: "--:--:--").title.timecode == nil)
         #expect(DesktopTake.recording(timecode: nil).isRecording)
         #expect(!DesktopTake.standby(timecode: nil).isRecording)
+        // A monitor that does not know whether the body records (no control link yet, a dropped
+        // link) shows no state word rather than claiming standby.
+        #expect(DesktopTake(recording: nil, timecode: "00:00:01").title == .init(state: nil, timecode: "00:00:01", role: .muted))
+        #expect(DesktopTake(recording: true, timecode: nil) == .recording(timecode: nil))
+        #expect(DesktopTake(recording: false, timecode: "1") == .standby(timecode: "1"))
+    }
+
+    @Test func aStaleMonitorCannotClearTheCurrentRegistration() {
+        // A monitor leaving the screen after a new one registered leaves the new one's actions.
+        var registry = DesktopRegistry<String>()
+        let old = DesktopRegistry<String>.Owner(), new = DesktopRegistry<String>.Owner()
+        registry.register("old", owner: old)
+        registry.register("new", owner: new)
+        registry.unregister(owner: old)
+        #expect(registry.current == "new")
+        registry.unregister(owner: new)
+        #expect(registry.current == nil)
+        // The same monitor coming back registers again.
+        registry.register("new again", owner: new)
+        #expect(registry.current == "new again")
     }
 }

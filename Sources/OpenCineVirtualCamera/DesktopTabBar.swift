@@ -116,11 +116,14 @@
                     TimelineView(.periodic(from: .now, by: 1.0 / 30)) { _ in
                         let title = commands.take.title
                         HStack(spacing: 8) {
-                            Text(title.state)
-                                .font(DesktopToolbarLook.font(commands.fontFamily, 9.5, face: "Bold"))
-                                .tracking(1.1)
-                                .foregroundStyle(
-                                    title.role == .recording ? DesktopToolbarLook.recording : DesktopToolbarLook.muted)
+                            if let state = title.state {
+                                Text(state)
+                                    .font(DesktopToolbarLook.font(commands.fontFamily, 9.5, face: "Bold"))
+                                    .tracking(1.1)
+                                    .foregroundStyle(
+                                        title.role == .recording
+                                            ? DesktopToolbarLook.recording : DesktopToolbarLook.muted)
+                            }
                             if let timecode = title.timecode {
                                 Text(timecode)
                                     .font(DesktopToolbarLook.font(commands.fontFamily, 11.5, face: "SemiBold"))
@@ -131,7 +134,8 @@
                                 .padding(.leading, 6)
                         }
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(title.role == .recording ? "Recording" : "Standing by")
+                        .accessibilityLabel(
+                            title.role == .recording ? "Recording" : title.state == nil ? "Take" : "Standing by")
                         .accessibilityValue(title.timecode ?? "")
                     }
                 }

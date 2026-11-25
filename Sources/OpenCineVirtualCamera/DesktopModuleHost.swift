@@ -300,13 +300,17 @@
     @MainActor
     enum DesktopKeyInstaller {
         static let action = #selector(UIWindow.openCineDesktopKey(_:))
+        /// Roots already given the table, so the timer never adds it twice even where a root does
+        /// not list added commands in `keyCommands`.
+        private static let installed = NSHashTable<UIViewController>.weakObjects()
 
         static func install() {
             let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             for window in scenes.flatMap(\.windows) {
-                guard let root = window.rootViewController,
+                guard let root = window.rootViewController, !installed.contains(root),
                     !(root.keyCommands ?? []).contains(where: { $0.action == action })
                 else { continue }
+                installed.add(root)
                 for key in DesktopKeyCommands.registered {
                     let command = UIKeyCommand(
                         input: key.input, modifierFlags: flags(key.modifiers), action: action)
