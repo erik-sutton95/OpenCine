@@ -515,7 +515,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             presentation: .init(visible: !covered || editing != nil, interactive: editing == nil && session.interactive,
                 dimmed: cameraViews.motion?.dimmed == true, transientControlsHidden: motionCovering,
                 pictureWaiting: facts.picture.waiting && !command,
-                statusMounted: !desktop && mounts(.statusBar) && commandHeader != .hidden,
+                statusMounted: desktop || (mounts(.statusBar) && commandHeader != .hidden),
                 powerMounted: !desktop && mounts(.batteries) && !usesCompactTelemetry,
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
@@ -534,7 +534,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                     }
                 }
             },
-            status: { statusChrome.monitorHiddenWhileZoom(zoomRulerOpen) }, power: { powerChrome }, capture: { captureChrome },
+            status: { statusSlot }, power: { powerChrome }, capture: { captureChrome },
             system: { systemChrome }, tools: {
                 // Keep the palette's zIndex in the screen's chrome stack, above capture values.
                 // A layout container here would trap it below the later capture slot.
@@ -598,6 +598,53 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         }
     }
 
+    @ViewBuilder private var statusSlot: some View {
+        if desktop { desktopStatusRow } else { statusChrome.monitorHiddenWhileZoom(zoomRulerOpen) }
+    }
+    /// The desktop status row: the same values as the top strip and the gauges, in one row under
+    /// the title bar. Format, colour and mode chips open what their header readouts open.
+    private var desktopStatus: MonitorDesktopStatus {
+        let battery = facts.cameraBattery.map {
+            MonitorDesktopStatus.Battery(percent: $0.percent, bars: $0.bars, barCount: $0.barCount,
+                warning: $0.warning, exhausted: $0.exhausted, charging: $0.charging, externalPower: $0.externalPower)
+        }
+        return .from(fps: status.fps, signalBars: status.signalBars, battery: battery,
+            storage: status.storage?.value, format: status.format.map(\.value),
+            logProfile: status.color?.value, mode: status.mode?.value)
+    }
+    private func desktopReadout(_ kind: MonitorDesktopStatus.Chip.Kind) -> MonitorOperatorLiveReadout<Key, Section>? {
+        switch kind {
+        case .format: status.format.first
+        case .logProfile: status.color
+        case .mode: status.mode
+        case .link, .battery, .card: nil
+        }
+    }
+    private var desktopStatusRow: some View {
+        MonitorDesktopStatusRow(status: desktopStatus, audio: facts.audio?.levels) { chip in
+            if let readout = desktopReadout(chip.kind) {
+                MonitorOperatorCaptureHeaderReadout(inputs: captureInputs, control: control, state: captureState,
+                    source: captureSource, readout: readout, enabled: presentationAdmitted, commandEnabled: !readOnly,
+                    currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
+                    expandsHeight: false) { MonitorDesktopStatusChip(chip: chip) }
+                    .background(frameReader(readout.id))
+            } else {
+                MonitorDesktopStatusChip(chip: chip)
+            }
+        } leading: {
+            // A camera lent from Multiview returns there from the row's leading end.
+            if let returnToStage = source.returnToStage {
+                Button { if exposed { returnToStage() } } label: {
+                    MonitorIcon.layoutGrid.frame(width: 14, height: 14).foregroundStyle(MonitorTheme.text)
+                        .frame(width: 28, height: 22)
+                        .background(MonitorTheme.raised, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain).accessibilityLabel("Return to Multiview")
+                .accessibilityIdentifier("monitor.system.multicamReturn")
+            }
+        }
+        .frame(width: CGFloat(layout.status.width))
+    }
     private var statusChrome: some View {
             let modeShown = !layout.portrait && layout.viewport.width >= 800 && !command ? status.mode : nil
             let plan = MonitorHeaderReadoutPolicy.plan(
