@@ -19,6 +19,8 @@
         public let moduleID: String
         public let slot: VirtualCameraSlot
         public let output: VirtualCameraOutput
+        /// What the window's toolbar buttons and keys run: the app's monitor registers its actions.
+        public let commands = DesktopCommands()
         private var inbound = Data()
         private var lastStatus: ModuleStatus?
         private nonisolated let lastFrame = OSAllocatedUnfairLock<UInt64?>(initialState: nil)
@@ -36,7 +38,7 @@
         /// Waiting for the window to be on screen before answering `shown`.
         private var awaitingShown = false
         private let tabBar = DesktopTabBarModel()
-        private lazy var toolbar = DesktopTabToolbar(model: tabBar)
+        private lazy var toolbar = DesktopTabToolbar(model: tabBar, commands: commands)
         private lazy var closeTarget = DesktopCloseTarget { [weak self] in self?.closeRequested() }
         /// The dock's bundle identifier, so this module can hand it keyboard focus for its alert.
         private let dockBundleID: String?
@@ -150,6 +152,7 @@
         /// window keeps whatever frame the owner gives it.
         private func holdWindow() {
             toolbar.installOnConnectedScenes()
+            DesktopKeyInstaller.install()
             let windows = AppKitBridge.windows
             // Forget windows that are gone, so a new one with a reused address is placed too.
             placedWindows.formIntersection(windows.map(ObjectIdentifier.init))
@@ -193,6 +196,19 @@
             }
             send(.selectTab(id: id))
         }
+
+        /// A key from the window's key table. Tab keys switch tabs through the dock, as a click does.
+        func perform(_ shortcut: DesktopShortcut) {
+            let ids = tabBar.tabs.map(\.id)
+            let selected = tabBar.selectedID.flatMap { ids.firstIndex(of: $0) }
+            if let index = DesktopKeyCommands.tabIndex(for: shortcut, selected: selected, tabCount: ids.count) {
+                if ids[index] != tabBar.selectedID { selectTab(ids[index]) }
+                return
+            }
+            commands.perform(shortcut)
+        }
+
+        var tabCount: Int { tabBar.tabs.count }
 
         /// The dock asks before quitting while an input is live, so it gets keyboard focus first.
         private func closeRequested() {
@@ -273,6 +289,87 @@
                     if written < 0, errno == EINTR { continue }
                     guard written > 0 else { return }
                     offset += written
+                }
+            }
+        }
+    }
+
+    /// Puts the key table (`DesktopKeyCommands`) on each scene window's root view controller. The
+    /// commands' action is a method on `UIWindow`, which is in every responder chain of the window.
+    @available(macCatalyst 17.0, *)
+    @MainActor
+    enum DesktopKeyInstaller {
+        static let action = #selector(UIWindow.openCineDesktopKey(_:))
+
+        static func install() {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            for window in scenes.flatMap(\.windows) {
+                guard let root = window.rootViewController,
+                    !(root.keyCommands ?? []).contains(where: { $0.action == action })
+                else { continue }
+                for key in DesktopKeyCommands.registered {
+                    let command = UIKeyCommand(
+                        input: key.input, modifierFlags: flags(key.modifiers), action: action)
+                    // ⌘, and the tab keys would otherwise go to the system first.
+                    command.wantsPriorityOverSystemBehavior = true
+                    root.addKeyCommand(command)
+                }
+            }
+        }
+
+        static func flags(_ modifiers: DesktopModifiers) -> UIKeyModifierFlags {
+            var flags: UIKeyModifierFlags = []
+            if modifiers.contains(.command) { flags.insert(.command) }
+            if modifiers.contains(.shift) { flags.insert(.shift) }
+            if modifiers.contains(.control) { flags.insert(.control) }
+            if modifiers.contains(.option) { flags.insert(.alternate) }
+            return flags
+        }
+
+        static func modifiers(_ flags: UIKeyModifierFlags) -> DesktopModifiers {
+            var modifiers: DesktopModifiers = []
+            if flags.contains(.command) { modifiers.insert(.command) }
+            if flags.contains(.shift) { modifiers.insert(.shift) }
+            if flags.contains(.control) { modifiers.insert(.control) }
+            if flags.contains(.alternate) { modifiers.insert(.option) }
+            return modifiers
+        }
+
+        /// The responder that has focus, found by sending an action to the first responder.
+        private static weak var focused: UIResponder?
+
+        static func focusedResponder() -> UIResponder? {
+            focused = nil
+            UIApplication.shared.sendAction(#selector(UIResponder.openCineDesktopReportFocus(_:)), to: nil, from: nil, for: nil)
+            return focused
+        }
+
+        static func noteFocused(_ responder: UIResponder) { focused = responder }
+    }
+
+    @available(macCatalyst 17.0, *)
+    extension UIResponder {
+        @objc func openCineDesktopReportFocus(_ sender: Any?) {
+            MainActor.assumeIsolated { DesktopKeyInstaller.noteFocused(self) }
+        }
+    }
+
+    @available(macCatalyst 17.0, *)
+    extension UIWindow {
+        /// Runs a key of the module window's key table. A plain key pressed while text has focus
+        /// types its letter into that text instead.
+        @objc func openCineDesktopKey(_ sender: UIKeyCommand) {
+            MainActor.assumeIsolated {
+                guard let input = sender.input, let host = DesktopModuleHost.current else { return }
+                let focused = DesktopKeyInstaller.focusedResponder()
+                let textHasFocus = focused is UITextInput
+                let modifiers = DesktopKeyInstaller.modifiers(sender.modifierFlags)
+                if let shortcut = DesktopKeyCommands.action(
+                    input: input, modifiers: modifiers, textHasFocus: textHasFocus, tabCount: host.tabCount)
+                {
+                    host.perform(shortcut)
+                } else if modifiers.isEmpty, let text = focused as? UIKeyInput {
+                    text.insertText(input)
                 }
             }
         }
