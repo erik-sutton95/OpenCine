@@ -1,6 +1,7 @@
 #if os(iOS)
     import MonitorPresentation
     import MonitorUI
+    import OpenCineCore
     import OpenCineMulticam
     import SwiftUI
 
@@ -832,7 +833,7 @@
         var barCount: Int = 5
 
         var body: some View {
-            let tablet = UIDevice.current.userInterfaceIdiom == .pad
+            let tablet = HostDevice.current.isLargeScreen
             Group {
                 if let bars {
                     MonitorGaugeBars(

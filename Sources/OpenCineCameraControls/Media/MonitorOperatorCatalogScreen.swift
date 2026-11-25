@@ -3,6 +3,7 @@ import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
 import OpenCineCameraVocabulary
+import OpenCineCore
 import OpenCineMedia
 import SwiftUI
 
@@ -158,7 +159,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                     status: presentation?.status ?? (sourceAvailable ? "Camera + local cache" : "Available on this phone"),
                     selectedIDs: Set(library.selectedIDs.map(\.rawValue)), selecting: library.selecting,
                     refreshing: library.fetching, canRefresh: sourceAvailable,
-                    tablet: UIDevice.current.userInterfaceIdiom == .pad,
+                    tablet: HostDevice.current.isLargeScreen,
                     hint: MonitorMediaGalleryCopy.galleryHint(sourceAvailable: sourceAvailable, selecting: library.selecting),
                     action: { action($0, snapshot: snapshot) }, thumbnail: { value in
                         if let record = snapshot.record(MediaAssetID(value.id)) {

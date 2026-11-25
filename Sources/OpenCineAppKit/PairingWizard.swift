@@ -1,4 +1,5 @@
 import MonitorPresentation
+import MonitorUI
 import OpenCineCore
 
 /// The four-page pair wizard the camera apps showed before the shared pair page (find, approve,

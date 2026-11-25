@@ -180,6 +180,7 @@ extension MonitorPresentation.MonitorPlaybackZoom
 extension MonitorPresentation.MonitorRect
 extension MonitorPresentation.MonitorScopeCanvasSlot
 extension MonitorPresentation.MonitorScopeStoredCenter
+extension OpenCineCore.HostDevice
 extension OpenCineMedia.VectorscopeRaster
 extension SwiftUI.ButtonStyle
 extension SwiftUICore.EnvironmentValues
@@ -248,6 +249,7 @@ func View.monitorDesktopCommands(_: MonitorDesktopCommandSink?) -> some SwiftUI.
 func View.monitorFullWidthCard() -> some SwiftUI.View
 func View.monitorGlass(in: some SwiftUI.Shape, density: MonitorGlassDensity) -> some SwiftUI.View
 func View.monitorHiddenWhileZoom(_: Swift.Bool) -> some SwiftUI.View
+func View.monitorPointerWheel(onHover: (CoreFoundation.CGPoint?) -> Swift.Void, onScroll: (MonitorPointerScroll) -> Swift.Void) -> some SwiftUI.View
 func View.monitorPresentationVisibility(_: Swift.Bool) -> some SwiftUI.View
 func View.monitorPulse(period: Foundation.TimeInterval) -> some SwiftUI.View
 func View.monitorReadoutShadow() -> some SwiftUI.View
@@ -404,6 +406,7 @@ init MonitorPlaybackRatingDetails(stars: Swift.Int?, levels: [Swift.Int], enable
 init MonitorPlaybackRatingShade(stars: Swift.Int?, levels: [Swift.Int], enabled: Swift.Bool, notice: Swift.String?, expanded: SwiftUI.Binding<Swift.Bool>, select: (Swift.Int) -> Swift.Void)
 init MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPlaybackActions, coverPresented: Swift.Bool, onGeometry: (MonitorPlaybackPictureGeometry) -> Swift.Void, onBarFrame: (CoreFoundation.CGRect) -> Swift.Void, slots: MonitorPlaybackPageSlots, picture: () -> Picture, feedAssists: (CoreFoundation.CGRect) -> FeedAssists, canvasAssists: (CoreFoundation.CGSize, CoreFoundation.CGRect) -> CanvasAssists, tools: (MonitorPlaybackToolsContext) -> Tools)<Picture, FeedAssists, CanvasAssists, Tools where Picture : SwiftUI.View, FeedAssists : SwiftUI.View, CanvasAssists : SwiftUI.View, Tools : SwiftUI.View>
 init MonitorPlaybackScrubber(progress: Swift.Double, duration: Swift.Double, bufferedProgress: Swift.Double, interactionIdentity: () -> Swift.AnyHashable, onScrubbingChanged: (Swift.Bool) -> Swift.Void, onProgressChange: (Swift.Double) -> Swift.Void, onSeek: (Swift.Double) -> Swift.Void, onCancelled: (MonitorPresentation.MonitorEditingCancellation) -> Swift.Void)
+init MonitorPointerScroll(dx: Swift.Double, dy: Swift.Double, device: MonitorPresentation.MonitorScrollAccumulator.Device, location: CoreFoundation.CGPoint)
 init MonitorPortraitFormatGroup(showsDetail: Swift.Bool, primary: () -> Primary, detail: () -> Detail)<Primary, Detail where Primary : SwiftUI.View, Detail : SwiftUI.View>
 init MonitorPortraitFormatStackLayout(target: CoreGraphics.CGFloat)
 init MonitorPortraitInlineReadoutText(_: Swift.String, detail: Swift.Bool)
@@ -905,6 +908,7 @@ static let OperatorPanelMetrics.closeLeading: CoreGraphics.CGFloat
 static let OperatorPanelMetrics.closeSize: CoreGraphics.CGFloat
 static let OperatorPanelMetrics.topStackWidth: CoreGraphics.CGFloat
 static var ButtonStyle.monitorTapTarget: MonitorTapTargetButtonStyle
+static var HostDevice.current: MonitorPresentation.MonitorHostDevice
 static var LiveChromeMetrics.auxiliaryButtonSize: CoreGraphics.CGFloat
 static var LiveChromeMetrics.chromeTop: CoreGraphics.CGFloat
 static var LiveChromeMetrics.displayButtonHeight: CoreGraphics.CGFloat
@@ -1078,6 +1082,7 @@ struct MonitorPlaybackRatingShade: Sendable, View
 struct MonitorPlaybackScreen<Picture, FeedAssists, CanvasAssists, Tools where Picture : SwiftUI.View, FeedAssists : SwiftUI.View, CanvasAssists : SwiftUI.View, Tools : SwiftUI.View>: Sendable, View
 struct MonitorPlaybackScrubber: Sendable, View
 struct MonitorPlaybackToolsContext
+struct MonitorPointerScroll: Equatable, Sendable
 struct MonitorPortraitFormatGroup<Primary, Detail where Primary : SwiftUI.View, Detail : SwiftUI.View>: Sendable, View
 struct MonitorPortraitFormatStackLayout: Animatable, Layout, Sendable
 struct MonitorPortraitInlineReadoutText: Sendable, View
@@ -1495,6 +1500,10 @@ var MonitorPlaybackRatingDetails.body: some SwiftUI.View
 var MonitorPlaybackRatingShade.body: some SwiftUI.View
 var MonitorPlaybackScreen.body: some SwiftUI.View
 var MonitorPlaybackScrubber.body: some SwiftUI.View
+var MonitorPointerScroll.device: MonitorPresentation.MonitorScrollAccumulator.Device
+var MonitorPointerScroll.dx: Swift.Double
+var MonitorPointerScroll.dy: Swift.Double
+var MonitorPointerScroll.location: CoreFoundation.CGPoint
 var MonitorPortraitFormatGroup.body: some SwiftUI.View
 var MonitorPortraitInlineReadoutText.body: some SwiftUI.View
 var MonitorPortraitReadoutText.body: some SwiftUI.View

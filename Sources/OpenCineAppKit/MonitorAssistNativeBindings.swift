@@ -1,6 +1,7 @@
 #if os(iOS)
 import MonitorPresentation
 import MonitorUI
+import OpenCineCore
 import SwiftUI
 import UIKit
 
@@ -30,7 +31,7 @@ extension MonitorScopePanelStore {
     }
     public func presentationScale(in bounds: CGRect, tablet: Bool? = nil) -> Double {
         presentationScale(width: Double(bounds.width), height: Double(bounds.height),
-            tablet: tablet ?? (UIDevice.current.userInterfaceIdiom == .pad))
+            tablet: tablet ?? HostDevice.current.isLargeScreen)
     }
     public func sessionCenter(in bounds: CGRect) -> CGPoint? {
         sessionPosition(in: MonitorScopeCanvasSlot.forBounds(bounds))?.cgPoint

@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// The interface lock's rotation hold. While the monitor is
 /// locked the screen keeps the orientation it had when the lock engaged, so an operator who
@@ -31,6 +32,7 @@ public struct MonitorRotationHold<Value: Equatable & Sendable>: Equatable, Senda
 }
 
 #if os(iOS)
+    import MonitorUI
     import SwiftUI
     import UIKit
 
@@ -90,7 +92,7 @@ public struct MonitorRotationHold<Value: Equatable & Sendable>: Equatable, Senda
         }
 
         private static func declaredOrientations() -> UIInterfaceOrientationMask {
-            let pad = UIDevice.current.userInterfaceIdiom == .pad
+            let pad = HostDevice.current.isLargeScreen
             let key = pad ? "UISupportedInterfaceOrientations~ipad" : "UISupportedInterfaceOrientations"
             let names = Bundle.main.object(forInfoDictionaryKey: key) as? [String]
                 ?? Bundle.main.object(forInfoDictionaryKey: "UISupportedInterfaceOrientations") as? [String]

@@ -54,7 +54,7 @@
             self.value = value()
         }
         public var body: some View {
-            let tablet = UIDevice.current.userInterfaceIdiom == .pad
+            let tablet = MonitorHostDevice.current.isLargeScreen
             let valueSize = CGFloat(MonitorReadoutTypography.valueSize(tablet: tablet))
             let ink = active ? MonitorTheme.edrAccent(gain: hdrGain) : MonitorTheme.edrText(gain: hdrGain)
             let caption = active ? MonitorTheme.edrAccent(gain: hdrGain) : MonitorTheme.edrMuted(gain: hdrGain)

@@ -1636,7 +1636,7 @@
         var body: some View {
             let place = MonitorCapturePopupLayout(
                 viewportWidth: viewport.width, viewportHeight: viewport.height,
-                tablet: UIDevice.current.userInterfaceIdiom == .pad,
+                tablet: HostDevice.current.isLargeScreen,
                 safeArea: MonitorSafeArea(
                     top: safeArea.top, leading: safeArea.leading,
                     bottom: safeArea.bottom, trailing: safeArea.trailing),

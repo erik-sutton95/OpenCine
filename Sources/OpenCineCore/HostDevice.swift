@@ -1,6 +1,6 @@
 /// The device the app runs on, as the words name it: "this iPhone", "this iPad" or "this Mac". A
 /// computer cannot join a camera's own Wi-Fi, so its cameras come to its network instead. The
-/// running device is `HostDevice.current` in the app shell.
+/// running device is `HostDevice.current` in MonitorUI.
 public enum HostDevice: Sendable, Equatable {
     case iPhone, iPad, mac
 
@@ -14,6 +14,9 @@ public enum HostDevice: Sendable, Equatable {
 
     /// A computer: no camera Wi-Fi and no hotspot of its own; cameras join the network it is on.
     public var isComputer: Bool { self == .mac }
+
+    /// An iPad or a Mac: the large-screen (tablet) layout. Only an iPhone takes the phone layout.
+    public var isLargeScreen: Bool { self != .iPhone }
 }
 
 /// Station-route words that name the host device, shared by the integrations and the app shell.

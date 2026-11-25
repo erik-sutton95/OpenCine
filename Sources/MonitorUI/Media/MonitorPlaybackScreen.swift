@@ -192,7 +192,7 @@
                 GeometryReader { geometry in
                     let layout = MonitorPlaybackLayout(
                         width: geometry.size.width, height: geometry.size.height,
-                        tablet: UIDevice.current.userInterfaceIdiom == .pad)
+                        tablet: MonitorHostDevice.current.isLargeScreen)
                     let portrait = layout.portrait
                     let safe = Self.safeArea(
                         geometry.safeAreaInsets, scene: windowGeometry.safeArea)
@@ -349,7 +349,7 @@
 
         private func bottomBar(portrait: Bool) -> some View {
             playbackTransportBar(portrait: portrait)
-                .frame(maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? 860 : 630)
+                .frame(maxWidth: MonitorHostDevice.current.isLargeScreen ? 860 : 630)
                 .padding(.horizontal, 12).padding(.top, 14).padding(.bottom, 5)
                 .frame(maxWidth: .infinity)
                 .background(

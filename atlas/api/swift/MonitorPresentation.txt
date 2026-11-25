@@ -216,6 +216,8 @@ case MonitorReadoutInteraction.Phase.idle
 case MonitorReadoutInteraction.Phase.pressing
 case MonitorScopeCanvasSlot.landscape
 case MonitorScopeCanvasSlot.portrait
+case MonitorScrollAccumulator.Device.mouse
+case MonitorScrollAccumulator.Device.trackpad
 case MonitorSettingsTab.assist
 case MonitorSettingsTab.controls
 case MonitorSettingsTab.display
@@ -249,6 +251,8 @@ case MonitorWatcherSetting.shutter
 case MonitorWatcherSetting.zoom
 case MonitorWaveformMode.luma
 case MonitorWaveformMode.rgb
+case MonitorWriteCoalescer.Action.wait(Swift.Double)
+case MonitorWriteCoalescer.Action.write(Value)
 case MonitorZoomAttachment.bottom
 case MonitorZoomAttachment.trailing
 case MonitorZoomRulerTick.Kind.major
@@ -356,6 +360,7 @@ enum MonitorReadoutTypography: Sendable
 enum MonitorScopeCanvasSlot: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorScopeChromeAvoidance
 enum MonitorScopeSizing
+enum MonitorScrollAccumulator.Device: Equatable, Hashable, Sendable
 enum MonitorSettingsCardMetrics: Sendable
 enum MonitorSettingsTab: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorSideRailControlLayout
@@ -375,6 +380,7 @@ enum MonitorWatcherPasscodeRule
 enum MonitorWatcherPasscodeRule.Entry: Equatable, Sendable
 enum MonitorWatcherSetting: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorWaveformMode: CaseIterable, Decodable, Encodable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
+enum MonitorWriteCoalescer.Action<Value where Value : Swift.Equatable, Value : Swift.Sendable>: Equatable, Sendable
 enum MonitorZoomAttachment: Equatable, Hashable, Sendable
 enum MonitorZoomCaption
 enum MonitorZoomRulerTick.Kind: Equatable, Hashable, Sendable
@@ -470,6 +476,9 @@ func MonitorReadoutOwnership.release(_: Foundation.UUID) -> ()
 func MonitorReadoutSnapshot.changedValue(at: Swift.Double) -> Swift.String?
 func MonitorReadoutSnapshot.position(translation: Swift.Double) -> Swift.Double
 func MonitorReadoutSnapshot.selection(at: Swift.Double) -> Swift.String
+func MonitorScrollAccumulator.index(from: Swift.Int, count: Swift.Int, dx: Swift.Double, dy: Swift.Double, device: MonitorScrollAccumulator.Device) -> Swift.Int?
+func MonitorScrollAccumulator.reset() -> ()
+func MonitorScrollAccumulator.steps(dx: Swift.Double, dy: Swift.Double, device: MonitorScrollAccumulator.Device) -> Swift.Int
 func MonitorSystemControlsVisibility.resolved(locked: Swift.Bool, recording: Swift.Bool?, borrowed: Swift.Bool) -> MonitorSystemControlsVisibility
 func MonitorSystemControlsVisibility.resolved(locked: Swift.Bool, recording: Swift.Bool?, borrowed: Swift.Bool, chrome: MonitorChromeStyle) -> MonitorSystemControlsVisibility
 func MonitorThumbnailSize.columns(tablet: Swift.Bool) -> Swift.Int
@@ -485,6 +494,11 @@ func MonitorWatcherInteraction.update(context: MonitorWatcherContext, clean: Swi
 func MonitorWatcherPictureGeometry.belongs(to: MonitorWatcherTapSource) -> Swift.Bool
 func MonitorWatcherPresentation.admits(_: MonitorWatcherAction) -> Swift.Bool
 func MonitorWatcherTapSource.admits(_: MonitorWatcherTapSource) -> Swift.Bool
+func MonitorWheelDial.due(at: Swift.Double)<Key where Key : Swift.Hashable> -> [(key: Key, value: Swift.String)]
+func MonitorWheelDial.reset()<Key where Key : Swift.Hashable> -> ()
+func MonitorWheelDial.turn(key: Key, options: [Swift.String], reported: Swift.Int, dx: Swift.Double, dy: Swift.Double, device: MonitorScrollAccumulator.Device, at: Swift.Double)<Key where Key : Swift.Hashable> -> MonitorWheelDial<Key>.Turn?
+func MonitorWriteCoalescer.due(at: Swift.Double)<Value where Value : Swift.Equatable, Value : Swift.Sendable> -> Value?
+func MonitorWriteCoalescer.submit(_: Value, at: Swift.Double)<Value where Value : Swift.Equatable, Value : Swift.Sendable> -> MonitorWriteCoalescer<Value>.Action
 func MonitorZoomDrag.begin(at: Swift.Double) -> Swift.Bool
 func MonitorZoomDrag.cancel() -> Swift.Bool
 func MonitorZoomDrag.end() -> Swift.Bool
@@ -605,6 +619,7 @@ init MonitorScopeGuides(clip: Swift.Bool, crush: Swift.Bool, middle: Swift.Bool)
 init MonitorScopePoint(x: Swift.Double, y: Swift.Double)
 init MonitorScopeStoredCenter(xFraction: Swift.Double, yFraction: Swift.Double)
 init MonitorScreenPresentation(visible: Swift.Bool, interactive: Swift.Bool, dimmed: Swift.Bool, transientControlsHidden: Swift.Bool, pictureWaiting: Swift.Bool, statusMounted: Swift.Bool, powerMounted: Swift.Bool, captureMounted: Swift.Bool, captureHidden: Swift.Bool, captureInteractive: Swift.Bool, locked: Swift.Bool, popupInteractive: Swift.Bool, capturePresented: Swift.Bool, panelsRaised: Swift.Bool, recovering: Swift.Bool, statusInteractive: Swift.Bool)
+init MonitorScrollAccumulator(trackpadDistance: Swift.Double)
 init MonitorSideRailPlan(lockVisible: Swift.Bool, batteriesVisible: Swift.Bool, recordVisible: Swift.Bool, mediaVisible: Swift.Bool, settingsVisible: Swift.Bool, settingsReachable: Swift.Bool, interfaceLocked: Swift.Bool, recordingOrPending: Swift.Bool)
 init MonitorStatusPresentation(recording: Swift.Bool?, elapsedSeconds: Swift.Int?, timecode: Swift.String?, timecodePlaceholder: Swift.String)
 init MonitorSystemControlsVisibility(lock: Swift.Bool, settings: Swift.Bool, media: Swift.Bool, record: Swift.Bool, display: Swift.Bool)
@@ -626,6 +641,9 @@ init MonitorWatcherSettingValue(id: MonitorWatcherSetting, title: Swift.String, 
 init MonitorWatcherTapSource(source: Swift.String, revision: Swift.UInt64, canControl: Swift.Bool)
 init MonitorWaveformOptions(from: any Swift.Decoder) throws
 init MonitorWaveformOptions(mode: MonitorWaveformMode, brightness: Swift.Int, guides: MonitorScopeGuides, scale: Swift.Double, hasCustomScale: Swift.Bool, storedCenter: MonitorScopeStoredCenter?, storedCenterPortrait: MonitorScopeStoredCenter?)
+init MonitorWheelDial(interval: Swift.Double, hold: Swift.Double, trackpadDistance: Swift.Double)<Key where Key : Swift.Hashable>
+init MonitorWheelDial.Turn(key: Key, value: Swift.String, write: Swift.Bool, due: Swift.Double?)<Key where Key : Swift.Hashable>
+init MonitorWriteCoalescer(interval: Swift.Double)<Value where Value : Swift.Equatable, Value : Swift.Sendable>
 init MonitorZoomDrag()
 init MonitorZoomPresets(slots: [Swift.Double?], rampSeconds: Swift.Double)
 init MonitorZoomPresets(stored: Swift.String?)
@@ -903,6 +921,13 @@ let MonitorWatcherSettingValue.title: Swift.String
 let MonitorWatcherTapSource.canControl: Swift.Bool
 let MonitorWatcherTapSource.revision: Swift.UInt64
 let MonitorWatcherTapSource.source: Swift.String
+let MonitorWheelDial.Turn.due: Swift.Double?
+let MonitorWheelDial.Turn.key: Key
+let MonitorWheelDial.Turn.value: Swift.String
+let MonitorWheelDial.Turn.write: Swift.Bool
+let MonitorWheelDial.hold: Swift.Double
+let MonitorWheelDial.interval: Swift.Double
+let MonitorWriteCoalescer.interval: Swift.Double
 let MonitorZoomRulerScale.maximum: Swift.Double
 let MonitorZoomRulerScale.minimum: Swift.Double
 let MonitorZoomRulerTick.kind: MonitorZoomRulerTick.Kind
@@ -1466,6 +1491,7 @@ struct MonitorScopeGuides: Decodable, Encodable, Equatable, Sendable
 struct MonitorScopePoint: Equatable, Sendable
 struct MonitorScopeStoredCenter: Decodable, Encodable, Equatable, Sendable
 struct MonitorScreenPresentation: Equatable, Sendable
+struct MonitorScrollAccumulator: Equatable, Sendable
 struct MonitorSideRailPlan: Equatable, Sendable
 struct MonitorStatusPresentation: Equatable, Sendable
 struct MonitorSystemControlsVisibility: Equatable, Sendable
@@ -1485,6 +1511,9 @@ struct MonitorWatcherReading: Equatable, Identifiable, Sendable
 struct MonitorWatcherSettingValue: Equatable, Identifiable, Sendable
 struct MonitorWatcherTapSource: Equatable, Hashable, Sendable
 struct MonitorWaveformOptions: Decodable, Encodable, Equatable, MonitorScopePanelOptions, Sendable
+struct MonitorWheelDial.Turn<Key where Key : Swift.Hashable>: Equatable, Sendable
+struct MonitorWheelDial<Key where Key : Swift.Hashable>: Sendable
+struct MonitorWriteCoalescer<Value where Value : Swift.Equatable, Value : Swift.Sendable>: Sendable
 struct MonitorZoomDrag: Equatable, Sendable
 struct MonitorZoomPresets: Equatable, Sendable
 struct MonitorZoomRulerScale: Equatable, Sendable
@@ -1498,6 +1527,7 @@ struct StartupContentLayout: Equatable, Sendable
 struct StartupSideCutoutAvoidance: Equatable, Sendable
 subscript MonitorLegalDocuments(_: MonitorLegalPage) -> MonitorLegalDocument
 typealias MonitorCapabilities = OpenCineCore.MonitorLayoutCapabilities
+typealias MonitorHostDevice = OpenCineCore.HostDevice
 typealias MonitorPreviewAdmission = OpenCineMedia.MonitorPreviewAdmission
 typealias MonitorTimecodeFormat = OpenCineMedia.MonitorTimecodeFormat
 var CameraConnectFailure.Action.id: Swift.String
@@ -1849,6 +1879,7 @@ var MonitorScreenPresentation.statusInteractive: Swift.Bool
 var MonitorScreenPresentation.statusMounted: Swift.Bool
 var MonitorScreenPresentation.transientControlsHidden: Swift.Bool
 var MonitorScreenPresentation.visible: Swift.Bool
+var MonitorScrollAccumulator.trackpadDistance: Swift.Double
 var MonitorSettingsTab.id: Swift.String
 var MonitorSettingsTab.pill: Swift.String
 var MonitorSettingsTab.rail: Swift.String
@@ -1904,6 +1935,9 @@ var MonitorWaveformOptions.mode: MonitorWaveformMode
 var MonitorWaveformOptions.scale: Swift.Double
 var MonitorWaveformOptions.storedCenter: MonitorScopeStoredCenter?
 var MonitorWaveformOptions.storedCenterPortrait: MonitorScopeStoredCenter?
+var MonitorWheelDial.nextDue: Swift.Double?
+var MonitorWriteCoalescer.dueAt: Swift.Double?
+var MonitorWriteCoalescer.pending: Value?
 var MonitorZoomDrag.anchor: Swift.Double?
 var MonitorZoomPresets.rampSeconds: Swift.Double
 var MonitorZoomPresets.slots: [Swift.Double?]

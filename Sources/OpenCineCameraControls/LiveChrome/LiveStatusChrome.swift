@@ -3,6 +3,7 @@
     import MonitorUI
     import OpenCineAppKit
     import OpenCineCameraVocabulary
+    import OpenCineCore
     import OpenCineMedia
     import SwiftUI
     import UIKit
@@ -325,7 +326,7 @@
                 return MonitorAssistPaletteLayout.fieldMonitor(
                     presentation, toolCount: toolCount, safeTop: layout.safeArea.top)
             }
-            let tablet = UIDevice.current.userInterfaceIdiom == .pad
+            let tablet = HostDevice.current.isLargeScreen
             let portrait = layout.viewport.height > layout.viewport.width
             let maximumWidth =
                 portrait

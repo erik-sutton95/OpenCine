@@ -794,6 +794,7 @@ var HostClock.date: () -> Foundation.Date
 var HostClock.now: () -> MonotonicInstant
 var HostClock.sleep: (Swift.Duration) async throws -> Swift.Void
 var HostDevice.isComputer: Swift.Bool
+var HostDevice.isLargeScreen: Swift.Bool
 var HostDevice.thisDevice: Swift.String
 var HostInterface.carriesDefaultRoute: Swift.Bool
 var HostInterface.ipv4: Swift.String
