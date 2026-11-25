@@ -36,11 +36,13 @@
 ### Task 1: Centred desktop picture and the title band (MonitorPresentation, OpenCineAppKit)
 
 **Files:**
+
 - Modify: `Sources/MonitorPresentation/FieldMonitorLayout.swift` (`landscapeFrame`, and its two desktop calls)
 - Modify: `Sources/OpenCineAppKit/MonitorScreen.swift` (paint the band above the status row)
 - Test: `Tests/MonitorPresentationTests/FieldMonitorDesktopChromeTests.swift` (replace `desktopPictureStartsBelowTheStatusRow`)
 
 **Interfaces:**
+
 - Produces: in `.desktop`, `picture` is centred both ways in `[status.maxY, height]`; `landscapeFrame(width:height:cut:aspect:top:)` keeps its signature, `top` now offsets a centred rect instead of resting it.
 
 - [ ] **Step 1: Write the failing test** `desktopPictureIsCentredBelowTheStatusRow`:
@@ -55,10 +57,12 @@
 ### Task 2: Wheel rules (MonitorPresentation)
 
 **Files:**
+
 - Create: `Sources/MonitorPresentation/MonitorScrollWheel.swift`
 - Test: `Tests/MonitorPresentationTests/MonitorScrollWheelTests.swift`
 
 **Interfaces (all `public`, `Sendable`, Mac only, no Kotlin twin):**
+
 - `struct MonitorScrollAccumulator: Equatable`
   - `enum Device { case mouse, trackpad }`
   - `init(trackpadDistance: Double = 24)`; `var trackpadDistance: Double`
@@ -95,12 +99,14 @@
 ### Task 3: Scroll wheel on the capture strip (MonitorUI, OpenCineAppKit, OpenCineCameraControls)
 
 **Files:**
+
 - Create: `Sources/MonitorUI/MonitorPointerWheel.swift` (Catalyst reader and the `View` modifier; identity elsewhere)
 - Create: `Sources/OpenCineAppKit/MonitorOperatorCaptureWheel.swift` (target, step and commit)
 - Modify: `Sources/OpenCineAppKit/MonitorOperatorCaptureInputs.swift` (state fields, highlight, popup frame)
 - Modify: `Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorLiveSurface.swift` (attach the modifier)
 
 **Interfaces:**
+
 - Consumes: `MonitorWheelDial`, `MonitorScrollAccumulator.Device` (Task 2).
 - Produces:
   - `public struct MonitorPointerScroll: Equatable, Sendable { dx: Double, dy: Double, device: MonitorScrollAccumulator.Device, location: CGPoint }`
@@ -119,11 +125,13 @@
 ### Task 4: One idiom helper and the Mac's large-screen path (shared)
 
 **Files:**
+
 - Modify: `Sources/OpenCineCore/HostDevice.swift` (add `isLargeScreen`)
 - Move: `HostDevice.current` from `Sources/OpenCineAppKit/HostDevice.swift` to new `Sources/MonitorUI/HostDevice+Current.swift` (same body; compiles on macOS too so `PairingWizard`'s default argument keeps working)
 - Test: `Tests/OpenCineAppKitTests/HostDeviceTests.swift`
 
 **Interfaces:**
+
 - Produces: `public var isLargeScreen: Bool` on `HostDevice` (`iPad` and `mac` true, `iPhone` false); `@MainActor public static var current: HostDevice` now in `MonitorUI`.
 
 **Idiom audit (each `UIDevice.current.userInterfaceIdiom == .pad` becomes `HostDevice.current.isLargeScreen`):**
