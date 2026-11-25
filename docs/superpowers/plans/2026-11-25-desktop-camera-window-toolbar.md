@@ -35,6 +35,7 @@
 **Files:** `Sources/MonitorUI/LiveMonitorLayout.swift` (and the monitor views that read its `lock`, top strip and gear/media rects), new `Sources/MonitorUI/MonitorDesktopChrome.swift`, plus tests next to the existing `LiveMonitorLayout` tests.
 
 **Interfaces:**
+
 - Produces:
   - `public enum MonitorChromeStyle: Sendable { case device, desktop }` and the environment value `\.monitorChromeStyle` (default `.device`).
   - `LiveMonitorLayout` takes the style. In `.desktop`:
@@ -54,6 +55,7 @@
 **Files:** new `Sources/MonitorUI/MonitorDesktopStatusRow.swift`, tests.
 
 **Interfaces:**
+
 - Produces:
   - `public struct MonitorDesktopStatus: Equatable, Sendable`, with `link`, `battery`, `card`, `format`, `logProfile`, `mode` (all optional display values), built by `MonitorDesktopStatus.from(...)` from the same presentation data the top strip and side readouts use today.
   - `public struct MonitorDesktopStatusRow: View` renders it with the existing audio meter view trailing.
@@ -68,6 +70,7 @@
 **Files:** `Sources/OpenCineVirtualCamera/DesktopModuleHost.swift`, `Sources/OpenCineVirtualCamera/DesktopTabBar.swift`, new `Sources/OpenCineVirtualCamera/DesktopCommands.swift`, and a pure `DesktopKeyCommands` in `OpenCineDesktopKit` with tests.
 
 **Interfaces:**
+
 - Produces:
   - `@MainActor public final class DesktopCommands`, on `DesktopModuleHost.current?.commands`, with `openSettings`, `openMedia` and `toggleRecord` (`(() -> Void)?`) and `take: DesktopTake` (`.standby(timecode: String)` or `.recording(timecode: String)`). Setting `take` updates the toolbar.
   - `public enum DesktopShortcut: Equatable, Sendable { case record, settings, media, tab(Int), nextTab, previousTab, overlays }`.
@@ -84,6 +87,7 @@
 ### Task 4: Wire the monitor to the commands and switch the apps on
 
 **Files:**
+
 - The shared live monitor root, wherever the gear and media actions and the record action are owned today, so it registers them with `DesktopModuleHost.current?.commands` and publishes the take state.
 - Each app sets `.monitorChromeStyle(.desktop)` when `DesktopModuleHost.current != nil` (one line per app, Mac Catalyst only).
 

@@ -1,7 +1,7 @@
 # OpenCine desktop: camera window with a toolbar and status row
 
 Date: 2026-11-25. The owner picked option A from the mockups at
-https://claude.ai/artifact/Dig7KK3neXTGsr3UQezpLb ("A looks good"). This builds on
+<https://claude.ai/artifact/Dig7KK3neXTGsr3UQezpLb> ("A looks good"). This builds on
 `2026-11-24-desktop-single-window-tabs-design.md`.
 
 ## Why
@@ -96,6 +96,7 @@ so that apps change as little as possible.
 | D | Toggle display overlays (DISP), only while no text field has focus |
 
 **Calls made for the owner to check:**
+
 - The tab look is flattened to match the mockup.
 - The audio meter is in the status row, not the toolbar.
 - "D" is a single key without a modifier, like the DISP button.
