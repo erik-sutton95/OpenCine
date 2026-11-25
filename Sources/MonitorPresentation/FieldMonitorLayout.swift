@@ -75,7 +75,18 @@ public enum MonitorJoystickSize: String, CaseIterable, Sendable {
     }
 }
 
+/// Where the live monitor runs. `device` is a phone or tablet screen. `desktop` is a window on a
+/// computer whose title bar is a toolbar holding Settings, Media and the take: one status row sits
+/// under the title bar, the picture starts below it, and there is no interface lock and no top
+/// strip, gear or media key on the picture. Desktop is Mac only, so it has no Kotlin twin.
+public enum MonitorChromeStyle: Equatable, Sendable {
+    case device
+    case desktop
+}
+
 public struct FieldMonitorLayout: Equatable, Sendable {
+    /// The desktop status row's height, under the title bar (`MonitorChromeStyle.desktop`).
+    public static let desktopStatusRowHeight = 30.0
     /// Space between the Settings and Media system buttons.
     public static let settingsMediaGap = 12.0
     /// Default on-feed gimbal joystick diameter.
@@ -135,6 +146,10 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public let portrait: Bool
     public let tablet: Bool
     public let fillsPicture: Bool
+    /// Device or desktop. In desktop `status` is the status row under the title bar, and `lock`,
+    /// `settings`, `media`, `gauges` and `telemetry` are empty: the toolbar and the status row
+    /// carry them.
+    public let chrome: MonitorChromeStyle
 
     /// The portrait header reserves a telemetry band even when immersive insets are small.
     /// This changes chrome only; the picture keeps its native safe-area anchor.
@@ -145,15 +160,22 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public init(
         width: Double, height: Double, safeArea: MonitorSafeArea = .init(),
         sourceAspect: Double = 16 / 9, fill: Bool = false, showsValues: Bool = true,
-        topControlInset: Double = 0, joystick: MonitorJoystickSize = .medium, valueCount: Int? = nil
+        topControlInset: Double = 0, joystick: MonitorJoystickSize = .medium, valueCount: Int? = nil,
+        chrome: MonitorChromeStyle = .device
     ) {
         let stickSide = joystick.side
         let w = max(1, width.isFinite ? width : 1)
         let h = max(1, height.isFinite ? height : 1)
         let aspect = sourceAspect.isFinite && sourceAspect > 0 ? sourceAspect : 16 / 9
-        let controlInset = max(0, min(h, topControlInset.isFinite ? topControlInset : 0))
+        let desktop = chrome == .desktop
+        // A desktop window's buttons sit in its title bar, above the safe area.
+        let controlInset = desktop ? 0 : max(0, min(h, topControlInset.isFinite ? topControlInset : 0))
+        // Desktop: the title bar (the window's top safe area) and the status row under it.
+        let titleBar = desktop ? max(0, min(h, safeArea.top.isFinite ? safeArea.top : 0)) : 0
+        let desktopBand = desktop ? min(h - 1, titleBar + Self.desktopStatusRowHeight) : 0
+        self.chrome = chrome
         viewport = .init(width: w, height: h)
-        portrait = h > w
+        portrait = !desktop && h > w
         tablet = min(w, h) >= 600
         let rec = tablet ? 84.0 : 70.0
         let button = MonitorSystemButtonMetrics.side(tablet: tablet)
@@ -246,15 +268,19 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             fillsPicture = false
             // The physical cutout is smaller than the full safe inset. The
             // picture stays centred across either landscape orientation.
-            let cut = max(0, max(safeArea.leading, safeArea.trailing) - 14)
-            let frame = Self.landscapeFrame(width: w, height: h, cut: cut, aspect: Self.frameAspect)
+            let cut = desktop ? 0 : max(0, max(safeArea.leading, safeArea.trailing) - 14)
+            // Desktop lays the picture out in the window below the status row.
+            let frame = Self.landscapeFrame(
+                width: w, height: h - desktopBand, cut: cut, aspect: Self.frameAspect,
+                top: desktop ? desktopBand : nil)
             // A picture taller than the frame (a 3:2 or 4:3 still) scales down inside the video's
             // 16:9 frame instead of growing taller: on a tablet the video's bars stay top and
             // bottom and the still is pillarboxed. A wider picture still spans the usable width.
             picture =
                 aspect < Self.frameAspect
                 ? frame.fitting(aspect: aspect)
-                : Self.landscapeFrame(width: w, height: h, cut: cut, aspect: aspect)
+                : Self.landscapeFrame(
+                    width: w, height: h - desktopBand, cut: cut, aspect: aspect, top: desktop ? desktopBand : nil)
             // Where the frame leaves bars above and below (a tablet), the status row sits on the
             // top bar as in video, so a still keeps it where video has it. Where the frame runs
             // the full height (a phone), the status row stays on the picture itself.
@@ -278,25 +304,35 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             let cornerClearance = hasCutout && !tablet ? h * 0.025 : 0
             let cornerTop =
                 (tablet ? 12.0 : (hasCutout ? 8.0 : 52.0)) + controlInset + cornerClearance
-            settings = .init(
+            let deviceSettings = MonitorRect(
                 x: tablet ? w - 14 - button * 2 - Self.settingsMediaGap : record.midX - button / 2,
                 y: cornerTop, width: button, height: button)
-            media = .init(
-                x: tablet ? settings.maxX + Self.settingsMediaGap : settings.x,
-                y: tablet ? cornerTop : settings.maxY + Self.settingsMediaGap, width: button,
-                height: button)
-            lock = .init(
-                x: 18, y: cornerTop, width: button, height: button)
-            gauges = .init(
-                x: 18, y: lock.maxY + Self.landscapeGaugeGap(tablet: tablet),
-                width: tablet ? 64 : 58, height: tablet ? 76 : 68)
+            let deviceLock = MonitorRect(x: 18, y: cornerTop, width: button, height: button)
+            settings = desktop ? .init() : deviceSettings
+            media =
+                desktop
+                ? .init()
+                : .init(
+                    x: tablet ? deviceSettings.maxX + Self.settingsMediaGap : deviceSettings.x,
+                    y: tablet ? cornerTop : deviceSettings.maxY + Self.settingsMediaGap, width: button,
+                    height: button)
+            lock = desktop ? .init() : deviceLock
+            gauges =
+                desktop
+                ? .init()
+                : .init(
+                    x: 18, y: deviceLock.maxY + Self.landscapeGaugeGap(tablet: tablet),
+                    width: tablet ? 64 : 58, height: tablet ? 76 : 68)
             telemetry = gauges
             // Keep the full 44pt touch target inside the screen. A 35pt band
             // centred at 21.5pt put its accessibility bounds above the window,
             // causing automatic hit-point selection to miss the top buttons.
-            status = .init(
-                x: max(77, anchor.x + 12), y: (tablet ? 4 : 0) + controlInset,
-                width: settings.x - max(77, anchor.x + 12) - 12, height: tablet ? 46 : 44)
+            status =
+                desktop
+                ? .init(x: 0, y: titleBar, width: w, height: Self.desktopStatusRowHeight)
+                : .init(
+                    x: max(77, anchor.x + 12), y: (tablet ? 4 : 0) + controlInset,
+                    width: deviceSettings.x - max(77, anchor.x + 12) - 12, height: tablet ? 46 : 44)
             let side = 14 + rec + 28
             let valuesH = showsValues ? 43.0 : 0
             let bottomPad = Self.landscapeBottomClearance(safeBottom: safeArea.bottom)
@@ -330,13 +366,15 @@ public struct FieldMonitorLayout: Equatable, Sendable {
 
     /// The largest rect of `aspect` centred in a landscape viewport, its width clear of the
     /// cutout band `cut` on both long edges.
-    static func landscapeFrame(width: Double, height: Double, cut: Double, aspect: Double)
-        -> MonitorRect
-    {
+    /// `top` rests the rect on that line (the desktop status row) instead of centring it, so the
+    /// free height goes below the picture, where the camera values sit.
+    static func landscapeFrame(
+        width: Double, height: Double, cut: Double, aspect: Double, top: Double? = nil
+    ) -> MonitorRect {
         let imageW = min(width - 2 * cut, height * aspect)
         let imageH = imageW / aspect
         return MonitorRect(
-            x: (width - imageW) / 2, y: (height - imageH) / 2, width: imageW, height: imageH)
+            x: (width - imageW) / 2, y: top ?? (height - imageH) / 2, width: imageW, height: imageH)
     }
 
     /// How far the floating scope panels keep from each viewport edge: the safe area on every
@@ -347,7 +385,7 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     /// Mirrors Kotlin `monitorOperatorLiveLayout` and `monitorOperatorFieldLayout` placement.
     public func scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea {
         MonitorSafeArea(
-            top: max(0, safeArea.top), leading: max(0, safeArea.leading),
+            top: max(0, contentSafeArea(safeArea).top), leading: max(0, safeArea.leading),
             bottom: portrait ? max(0, viewport.height - system.y) : 0,
             trailing: max(0, safeArea.trailing))
     }
@@ -370,6 +408,16 @@ public struct FieldMonitorLayout: Equatable, Sendable {
         ]
         return parts.filter { shown.contains($0.0) }.flatMap(\.1)
             .filter { $0.width > 0 && $0.height > 0 }
+    }
+
+    /// The safe area popups, sheets and scopes lay out in. A device keeps the window's own; a
+    /// desktop window's top is the status row's bottom, so nothing lands on the row or under the
+    /// title bar.
+    public func contentSafeArea(_ safeArea: MonitorSafeArea) -> MonitorSafeArea {
+        guard chrome == .desktop else { return safeArea }
+        var content = safeArea
+        content.top = max(safeArea.top, status.maxY)
+        return content
     }
 
     /// Landscape camera values sit above the home indicator instead of overlapping it.

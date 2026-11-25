@@ -123,6 +123,7 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
     private let picture: @MainActor @Sendable () -> Picture
     @State private var operatorSession: MonitorOperatorSessionModel<Looks>
     @State private var editorHost: MonitorOperatorEditorHost<Looks>
+    @Environment(\.monitorChromeStyle) private var chromeStyle
     @State private var opened: MonitorCaptureField?
     @State private var usage = MonitorToolUsage()
     @State private var note: String?
@@ -161,7 +162,8 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
             let layout = LiveMonitorLayout.fieldMonitor(size: proxy.size, safeArea: safe, sourceAspect: aspect,
                 fill: portraitAspect == .fill && !assist.isVisible(.desqueeze),
                 showsValues: operatorSession.mounts(.cameraValues),
-                showsBottomBars: operatorSession.mounts(.toolBar) || operatorSession.mounts(.cameraValues))
+                showsBottomBars: operatorSession.mounts(.toolBar) || operatorSession.mounts(.cameraValues),
+                chrome: chromeStyle)
             let identity = liveIdentity
             MonitorOperatorLiveSurface(host: editorHost, control: shell.control, session: operatorSession,
                 layout: layout, source: source(layout, aspect: aspect),

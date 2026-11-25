@@ -448,7 +448,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var assistSource: MonitorOperatorLiveAssistSource? { assists.scopes }
     private var stores: AssistPanelStores? { assists.scopes?.stores }
     private var editing: MonitorDisplayMode? { session.editingMode }
-    private var locked: Bool { session.locked }
+    /// A desktop window: the toolbar holds Settings and Media, a status row replaces the top strip.
+    private var desktop: Bool { layout.chrome == .desktop }
+    /// A desktop window has no interface lock.
+    private var locked: Bool { session.locked && !desktop }
     private var command: Bool { session.mode == .command }
     /// Command mode keeps no header, or storage and the link alone (`MonitorCommandHeader`): the
     /// dashboard's hero and tiles carry the record state, timecode and format (hardware pass 1.3).
@@ -462,7 +465,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     /// their drawers open from the top, beside them.
     private var cornerHoldsSetup: Bool {
         MonitorStatusCorner.holdsSetup(photo: photo, portrait: layout.portrait,
-            statusShown: mounts(.statusBar) && !command, valuesShown: mounts(.cameraValues))
+            statusShown: mounts(.statusBar) && !command && !desktop, valuesShown: mounts(.cameraValues))
     }
     private var cornerReadouts: [MonitorOperatorLiveReadout<Key, Section>] {
         facts.capture.cornerReadouts(holdsSetup: cornerHoldsSetup)
@@ -512,7 +515,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             presentation: .init(visible: !covered || editing != nil, interactive: editing == nil && session.interactive,
                 dimmed: cameraViews.motion?.dimmed == true, transientControlsHidden: motionCovering,
                 pictureWaiting: facts.picture.waiting && !command,
-                statusMounted: mounts(.statusBar) && commandHeader != .hidden, powerMounted: mounts(.batteries) && !usesCompactTelemetry,
+                statusMounted: !desktop && mounts(.statusBar) && commandHeader != .hidden,
+                powerMounted: !desktop && mounts(.batteries) && !usesCompactTelemetry,
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
                 panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
@@ -557,6 +561,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 }
             }
             .onChange(of: context, initial: true) { _, value in apply(lifecycle.update(value)) }
+            // No lock button in a desktop window, so nothing may stay locked there.
+            .onChange(of: session.locked, initial: true) { _, isLocked in
+                if desktop, isLocked { session.locked = false }
+            }
             // The interface lock also holds the screen's rotation (an inverted rig stays put).
             .monitorHoldsRotation(locked: locked)
             .onChange(of: identity) { _, _ in
@@ -818,7 +826,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         let index = modes.firstIndex(of: session.mode)
         return MonitorSystemControls(layout: layout, visibility: .init(lock: source.returnToStage != nil || mounts(.lockButton),
             settings: mounts(.railSettings), media: mounts(.railMedia), record: mounts(.railRecord), display: true)
-            .resolved(locked: locked, recording: control.isRecording, borrowed: facts.borrowed),
+            .resolved(locked: locked, recording: control.isRecording, borrowed: facts.borrowed, chrome: layout.chrome),
             capturePresented: transient, visible: !motionCovering, interactive: editing == nil,
             navigationHidden: captureState.preview != nil || (panel != nil && !layout.portrait)) {
             if let returnToStage = source.returnToStage {

@@ -26,4 +26,15 @@ public struct MonitorSystemControlsVisibility: Equatable, Sendable {
         result.media = media && !borrowed
         return result
     }
+
+    /// As `resolved(locked:recording:borrowed:)`, for a chrome style. A desktop window has no
+    /// interface lock, and its toolbar holds Settings and Media, so the picture draws none of them.
+    public func resolved(locked: Bool, recording: Bool?, borrowed: Bool, chrome: MonitorChromeStyle) -> Self {
+        guard chrome == .desktop else { return resolved(locked: locked, recording: recording, borrowed: borrowed) }
+        var result = resolved(locked: false, recording: recording, borrowed: borrowed)
+        result.lock = false
+        result.settings = false
+        result.media = false
+        return result
+    }
 }
