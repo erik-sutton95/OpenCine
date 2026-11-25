@@ -176,7 +176,9 @@
     @available(macCatalyst 17.0, *)
     @MainActor
     final class DesktopTabToolbar: NSObject, NSToolbarDelegate {
-        static let barHeight: CGFloat = 44
+        /// The items' height: what they measured on screen when the module ran scaled to 77 %, so the
+        /// title bar keeps a native unified height now that a point is a Mac point.
+        static let barHeight: CGFloat = 34
         private static let identifier = "com.opencapture.opencine.tabs"
         private static let tabsItem = NSToolbarItem.Identifier("com.opencapture.opencine.tabs.bar")
         private static let takeItem = NSToolbarItem.Identifier("com.opencapture.opencine.tabs.take")

@@ -152,6 +152,7 @@
         /// window keeps whatever frame the owner gives it.
         private func holdWindow() {
             toolbar.installOnConnectedScenes()
+            restrictWindowSizes()
             DesktopKeyInstaller.install()
             let windows = AppKitBridge.windows
             // Forget windows that are gone, so a new one with a reused address is placed too.
@@ -171,6 +172,19 @@
                 AppKitBridge.hideAll(includingMinimized: false)
             }
             confirmShownIfVisible()
+        }
+
+        /// The smallest a module window gets: above the 600 pt the monitor's large-screen layouts
+        /// need, so a window is never laid out for a phone.
+        static let minimumWindowSize = CGSize(width: 800, height: 600)
+
+        private func restrictWindowSizes() {
+            for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+                guard let restrictions = scene.sizeRestrictions,
+                    restrictions.minimumSize != Self.minimumWindowSize
+                else { continue }
+                restrictions.minimumSize = Self.minimumWindowSize
+            }
         }
 
         /// Answers `shown` once the window is on screen and has drawn: the next main run loop turn,
