@@ -42,28 +42,38 @@ struct FieldMonitorDesktopChromeTests {
         #expect(visibility.record && visibility.display)
     }
 
-    @Test func desktopPictureStartsBelowTheStatusRow() {
+    /// The picture is centred both ways in the space between the status row and the window's
+    /// bottom edge, so the bars are equal top and bottom, or left and right (spec
+    /// 2026-11-25-desktop-mac-sized-ui-and-scroll-dials-design.md).
+    @Test func desktopPictureIsCentredBelowTheStatusRow() {
         #expect(FieldMonitorLayout.desktopStatusRowHeight == 30)
-        // No title bar inset: the picture's top is the status row's bottom, 30 pt down.
-        #expect(Self.desktop(1000, 625, titleBar: 0).picture.y == 30)
         for (width, height) in Self.windows {
             for titleBar in Self.titleBars {
-                let layout = Self.desktop(width, height, titleBar: titleBar)
                 let label = "\(width)x\(height) title \(titleBar)"
-                // The picture rests on the row; spare height goes below it, to the camera values.
-                #expect(abs(layout.picture.y - layout.status.maxY) < 1e-9, "\(label)")
-                #expect(layout.picture.maxY <= height + 1e-9, "\(label)")
-                // A still (3:2) rests there too.
-                let still = FieldMonitorLayout(
-                    width: width, height: height, safeArea: .init(top: titleBar), sourceAspect: 1.5,
-                    chrome: .desktop)
-                #expect(abs(still.picture.y - still.status.maxY) < 1e-9, "\(label) still")
-                // The controls that stay on the picture stay inside the window.
-                for rect in [layout.record, layout.display, layout.values, layout.assists, layout.stick] {
-                    #expect(rect.y >= layout.status.maxY && rect.maxY <= height + 1e-9, "\(label)")
+                for aspect in [16.0 / 9.0, 1.5] {
+                    let layout = FieldMonitorLayout(
+                        width: width, height: height, safeArea: .init(top: titleBar), sourceAspect: aspect,
+                        chrome: .desktop)
+                    let above = layout.picture.y - layout.status.maxY
+                    let below = height - layout.picture.maxY
+                    #expect(above >= -1e-9, "\(label) \(aspect)")
+                    #expect(abs(above - below) < 1e-9, "\(label) \(aspect)")
+                    #expect(abs(layout.picture.x - (width - layout.picture.maxX)) < 1e-9, "\(label) \(aspect)")
+                    // The controls that stay on the picture stay inside the window.
+                    for rect in [layout.record, layout.display, layout.values, layout.assists, layout.stick] {
+                        #expect(rect.y >= layout.status.maxY && rect.maxY <= height + 1e-9, "\(label)")
+                    }
                 }
             }
         }
+        // A tall window: the spare height splits above and below the picture.
+        #expect(
+            Self.desktop(700, 1000, titleBar: 52).picture
+                == MonitorRect(x: 0, y: 344.125, width: 700, height: 393.75))
+        // A wide window: the picture fills the height under the row and is pillarboxed.
+        let wide = Self.desktop(1600, 600, titleBar: 0).picture
+        #expect(wide.y == 30 && wide.height == 570)
+        #expect(abs(wide.x - 880.0 / 3.0) < 1e-6)
     }
 
     @Test func desktopPopupsStayInsideThePictureArea() {

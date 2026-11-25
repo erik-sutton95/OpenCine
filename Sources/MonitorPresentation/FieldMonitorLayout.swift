@@ -269,7 +269,7 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             // The physical cutout is smaller than the full safe inset. The
             // picture stays centred across either landscape orientation.
             let cut = desktop ? 0 : max(0, max(safeArea.leading, safeArea.trailing) - 14)
-            // Desktop lays the picture out in the window below the status row.
+            // Desktop centres the picture in the window below the status row.
             let frame = Self.landscapeFrame(
                 width: w, height: h - desktopBand, cut: cut, aspect: Self.frameAspect,
                 top: desktop ? desktopBand : nil)
@@ -366,15 +366,15 @@ public struct FieldMonitorLayout: Equatable, Sendable {
 
     /// The largest rect of `aspect` centred in a landscape viewport, its width clear of the
     /// cutout band `cut` on both long edges.
-    /// `top` rests the rect on that line (the desktop status row) instead of centring it, so the
-    /// free height goes below the picture, where the camera values sit.
+    /// `top` is where the viewport starts (the desktop status row's bottom): the rect is centred in
+    /// the `height` below it, so the bars above and below the picture are equal.
     static func landscapeFrame(
         width: Double, height: Double, cut: Double, aspect: Double, top: Double? = nil
     ) -> MonitorRect {
         let imageW = min(width - 2 * cut, height * aspect)
         let imageH = imageW / aspect
         return MonitorRect(
-            x: (width - imageW) / 2, y: top ?? (height - imageH) / 2, width: imageW, height: imageH)
+            x: (width - imageW) / 2, y: (top ?? 0) + (height - imageH) / 2, width: imageW, height: imageH)
     }
 
     /// How far the floating scope panels keep from each viewport edge: the safe area on every
