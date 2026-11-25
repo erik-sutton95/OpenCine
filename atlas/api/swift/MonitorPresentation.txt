@@ -79,8 +79,21 @@ case MonitorCapturePopupKind.compact
 case MonitorCapturePopupKind.details
 case MonitorCaptureReadoutGroup.ridden
 case MonitorCaptureReadoutGroup.setup
+case MonitorChromeStyle.desktop
+case MonitorChromeStyle.device
 case MonitorCommandHeader.hidden
 case MonitorCommandHeader.telemetry
+case MonitorDesktopStatus.Chip.Kind.battery
+case MonitorDesktopStatus.Chip.Kind.card
+case MonitorDesktopStatus.Chip.Kind.format
+case MonitorDesktopStatus.Chip.Kind.link
+case MonitorDesktopStatus.Chip.Kind.logProfile
+case MonitorDesktopStatus.Chip.Kind.mode
+case MonitorDesktopStatus.Tint.accent
+case MonitorDesktopStatus.Tint.depleted
+case MonitorDesktopStatus.Tint.good
+case MonitorDesktopStatus.Tint.low
+case MonitorDesktopStatus.Tint.plain
 case MonitorDeviceOrientation.landscapeLeft
 case MonitorDeviceOrientation.landscapeRight
 case MonitorDeviceOrientation.portrait
@@ -287,9 +300,12 @@ enum MonitorCapturePopupChrome: Sendable
 enum MonitorCapturePopupEdge: Equatable, Hashable, Sendable
 enum MonitorCapturePopupKind: Equatable, Hashable, Sendable
 enum MonitorCaptureReadoutGroup: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
+enum MonitorChromeStyle: Equatable, Hashable, Sendable
 enum MonitorCommandDashboardLayout
 enum MonitorCommandGridLayout
 enum MonitorCommandHeader: Equatable, Hashable, Sendable
+enum MonitorDesktopStatus.Chip.Kind: Equatable, Hashable, Sendable
+enum MonitorDesktopStatus.Tint: Equatable, Hashable, Sendable
 enum MonitorDeviceOrientation: Equatable, Hashable, Sendable
 enum MonitorDialHaptic: Sendable
 enum MonitorDrumSelection
@@ -373,6 +389,7 @@ enum StartupLayoutProfile: Equatable, Hashable, Sendable
 enum StartupReadyLiveViewPolicy
 extension OpenCineMedia.MonitorFrameEffects
 func FieldMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> MonitorRect
+func FieldMonitorLayout.contentSafeArea(_: MonitorSafeArea) -> MonitorSafeArea
 func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
 func FieldMonitorLayout.scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea
 func FieldMonitorLayout.scopeObstacles(_: MonitorScopeChrome, motionCluster: Swift.Bool) -> [MonitorRect]
@@ -454,6 +471,7 @@ func MonitorReadoutSnapshot.changedValue(at: Swift.Double) -> Swift.String?
 func MonitorReadoutSnapshot.position(translation: Swift.Double) -> Swift.Double
 func MonitorReadoutSnapshot.selection(at: Swift.Double) -> Swift.String
 func MonitorSystemControlsVisibility.resolved(locked: Swift.Bool, recording: Swift.Bool?, borrowed: Swift.Bool) -> MonitorSystemControlsVisibility
+func MonitorSystemControlsVisibility.resolved(locked: Swift.Bool, recording: Swift.Bool?, borrowed: Swift.Bool, chrome: MonitorChromeStyle) -> MonitorSystemControlsVisibility
 func MonitorThumbnailSize.columns(tablet: Swift.Bool) -> Swift.Int
 func MonitorToolUsage.decay(to: Swift.Double) -> ()
 func MonitorToolUsage.rankedIDs(in: [Swift.String], seed: [Swift.String : Swift.Int], now: Swift.Double) -> [Swift.String]
@@ -498,7 +516,7 @@ init CameraPairingPresentation(steps: [CameraPairingStep], currentStep: Swift.In
 init CameraPairingStep(_: Swift.String, _: Swift.String)
 init CameraPresentationDetail(_: Swift.String, _: Swift.String)
 init CameraSetupChip(id: Swift.String, title: Swift.String, isActive: Swift.Bool, canForget: Swift.Bool, kind: Swift.String?)
-init FieldMonitorLayout(width: Swift.Double, height: Swift.Double, safeArea: MonitorSafeArea, sourceAspect: Swift.Double, fill: Swift.Bool, showsValues: Swift.Bool, topControlInset: Swift.Double, joystick: MonitorJoystickSize, valueCount: Swift.Int?)
+init FieldMonitorLayout(width: Swift.Double, height: Swift.Double, safeArea: MonitorSafeArea, sourceAspect: Swift.Double, fill: Swift.Bool, showsValues: Swift.Bool, topControlInset: Swift.Double, joystick: MonitorJoystickSize, valueCount: Swift.Int?, chrome: MonitorChromeStyle)
 init LiveStreamControlState(phase: LiveStreamPhase, eligibility: LiveStreamEligibility, serviceName: Swift.String, elapsedSeconds: Swift.Int)
 init LiveStreamMonitorState(control: LiveStreamControlState, serviceName: Swift.String, quality: LiveStreamQuality?, encrypted: Swift.Bool, status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?, cameraStatus: LiveStreamCameraStatus?, networkChoices: [LiveStreamNetworkChoice])
 init LiveStreamNetworkChoice(id: Swift.String, name: Swift.String)
@@ -525,6 +543,9 @@ init MonitorCommandSection(title: Swift.String, cells: [MonitorCommandTile<Kind,
 init MonitorCommandTile(kind: Kind?, title: Swift.String, value: Swift.String, request: Request?, unavailableReason: Swift.String?, amber: Swift.Bool, muted: Swift.Bool)<Kind, Request where Kind : Swift.Hashable>
 init MonitorCompactTelemetryBudget(layout: FieldMonitorLayout, safeLeading: Swift.Double, safeTrailing: Swift.Double, storageWidth: Swift.Double, powerWidth: Swift.Double, linkWidth: Swift.Double, minimumTarget: Swift.Double, scale: Swift.Double, minimumLinkWidth: Swift.Double)
 init MonitorDeferredSelection()<Context where Context : Swift.Equatable>
+init MonitorDesktopStatus(link: MonitorDesktopStatus.Chip?, battery: MonitorDesktopStatus.Chip?, card: MonitorDesktopStatus.Chip?, format: MonitorDesktopStatus.Chip?, logProfile: MonitorDesktopStatus.Chip?, mode: MonitorDesktopStatus.Chip?)
+init MonitorDesktopStatus.Battery(percent: Swift.Int?, bars: Swift.Int?, barCount: Swift.Int, warning: Swift.Bool, exhausted: Swift.Bool, charging: Swift.Bool?, externalPower: Swift.Bool?)
+init MonitorDesktopStatus.Chip(kind: MonitorDesktopStatus.Chip.Kind, text: Swift.String?, bars: Swift.Int?, tint: MonitorDesktopStatus.Tint)
 init MonitorDrumDrag()<Identity where Identity : Swift.Equatable>
 init MonitorDrumMetrics(options: [Swift.String])
 init MonitorEdgeInsets(top: Swift.Double, leading: Swift.Double, bottom: Swift.Double, trailing: Swift.Double)
@@ -619,6 +640,7 @@ init ReviewLiveValues(iso: Swift.Int, shutterDenominator: Swift.Int, whiteBalanc
 init StartupSideCutoutAvoidance(leading: Swift.Double, trailing: Swift.Double)
 let FieldMonitorLayout.aspectToggle: MonitorRect
 let FieldMonitorLayout.assists: MonitorRect
+let FieldMonitorLayout.chrome: MonitorChromeStyle
 let FieldMonitorLayout.display: MonitorRect
 let FieldMonitorLayout.fillsPicture: Swift.Bool
 let FieldMonitorLayout.focusReset: MonitorRect
@@ -976,6 +998,7 @@ static func MonitorCommandGridLayout.tileCenter(index: Swift.Int, tileWidth: Cor
 static func MonitorCommandGridLayout.valueFontSize(rowHeight: CoreGraphics.CGFloat) -> CoreGraphics.CGFloat
 static func MonitorCompactTelemetryBudget.linkWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?, linkX: Swift.Double) -> Swift.Double?
 static func MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?, linkWidth: Swift.Double, minimumTarget: Swift.Double) -> Swift.Double?
+static func MonitorDesktopStatus.from(fps: Swift.String?, signalBars: Swift.Int?, battery: MonitorDesktopStatus.Battery?, storage: Swift.String?, format: [Swift.String], logProfile: Swift.String?, mode: Swift.String?) -> MonitorDesktopStatus
 static func MonitorDialHaptic.isMajor(_: Swift.String) -> Swift.Bool
 static func MonitorDialHaptic.shouldTick(previous: Swift.Double, next: Swift.Double, majors: [Swift.Double]) -> Swift.Bool
 static func MonitorDialHaptic.shouldTick(previous: Swift.String?, next: Swift.String, optionCount: Swift.Int) -> Swift.Bool
@@ -1074,6 +1097,7 @@ static func StartupReadyLiveViewPolicy.canEnterMonitor(isConnected: Swift.Bool, 
 static func StartupSideCutoutAvoidance.resolve(for: MonitorEdgeInsets) -> StartupSideCutoutAvoidance
 static let FieldMonitorLayout.appBadgeGap: Swift.Double
 static let FieldMonitorLayout.appBadgeWidth: Swift.Double
+static let FieldMonitorLayout.desktopStatusRowHeight: Swift.Double
 static let FieldMonitorLayout.minimumTapTarget: Swift.Double
 static let FieldMonitorLayout.settingsMediaGap: Swift.Double
 static let FieldMonitorLayout.stickSide: Swift.Double
@@ -1384,6 +1408,9 @@ struct MonitorCommandTile<Kind, Request where Kind : Swift.Hashable>: Equatable,
 struct MonitorCompactTelemetryBudget: Equatable, Sendable
 struct MonitorDeferredSelection.Request<Context where Context : Swift.Equatable>: Equatable
 struct MonitorDeferredSelection<Context where Context : Swift.Equatable>
+struct MonitorDesktopStatus.Battery: Equatable, Sendable
+struct MonitorDesktopStatus.Chip: Equatable, Identifiable, Sendable
+struct MonitorDesktopStatus: Equatable, Sendable
 struct MonitorDrumDrag<Identity where Identity : Swift.Equatable>: Equatable, Sendable
 struct MonitorDrumMetrics: Equatable, Sendable
 struct MonitorEdgeInsets: Equatable, Sendable
@@ -1681,6 +1708,25 @@ var MonitorCommandTile.title: Swift.String
 var MonitorCommandTile.unavailableReason: Swift.String?
 var MonitorCommandTile.value: Swift.String
 var MonitorDeferredSelection.pending: MonitorDeferredSelection<Context>.Request?
+var MonitorDesktopStatus.Battery.barCount: Swift.Int
+var MonitorDesktopStatus.Battery.bars: Swift.Int?
+var MonitorDesktopStatus.Battery.charging: Swift.Bool?
+var MonitorDesktopStatus.Battery.exhausted: Swift.Bool
+var MonitorDesktopStatus.Battery.externalPower: Swift.Bool?
+var MonitorDesktopStatus.Battery.percent: Swift.Int?
+var MonitorDesktopStatus.Battery.warning: Swift.Bool
+var MonitorDesktopStatus.Chip.bars: Swift.Int?
+var MonitorDesktopStatus.Chip.id: MonitorDesktopStatus.Chip.Kind
+var MonitorDesktopStatus.Chip.kind: MonitorDesktopStatus.Chip.Kind
+var MonitorDesktopStatus.Chip.text: Swift.String?
+var MonitorDesktopStatus.Chip.tint: MonitorDesktopStatus.Tint
+var MonitorDesktopStatus.battery: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.card: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.chips: [MonitorDesktopStatus.Chip]
+var MonitorDesktopStatus.format: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.link: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.logProfile: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.mode: MonitorDesktopStatus.Chip?
 var MonitorDrumDrag.origin: Swift.String?
 var MonitorEditingSession.isEditing: Swift.Bool
 var MonitorFalseColorReferencePositions.landscape: MonitorFalseColorReferencePositions.Center?

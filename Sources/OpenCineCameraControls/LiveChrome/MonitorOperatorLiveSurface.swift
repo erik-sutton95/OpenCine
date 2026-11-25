@@ -415,6 +415,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @State private var lifecycle = MonitorInteractionLifecycle()
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
     @State private var compactTelemetryMinimumStatusTop: CGFloat = 0
+    @Environment(\.monitorDesktopCommands) private var desktopCommands
+    /// Presses from a desktop window's record and display keys.
+    @State private var recordPress = 0
+    @State private var displayPress = 0
 
     init(host: Host, control: MonitorControlModel, session: MonitorOperatorSessionModel<Looks>,
         live: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
@@ -578,7 +582,47 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .onChange(of: assist.sourceCurveKnown) { _, _ in
                 if let tool = assist.configureTool, !assist.offers(tool) { assist.configureTool = nil }
             }
-            .onDisappear { apply(lifecycle.close()); assist.liveCovered = false }
+            .onDisappear { apply(lifecycle.close()); assist.liveCovered = false; unregisterDesktopCommands() }
+            .onChange(of: desktopRegistration, initial: true) { _, _ in registerDesktopCommands() }
+            .onChange(of: recordPress) { _, _ in
+                // The capture button presses itself (`pressSignal`); an external recorder is asked here.
+                if !photo, let external = facts.record.external, admitted, recordEnabled { external.request() }
+            }
+            .onChange(of: displayPress) { _, _ in if exposed && !locked { session.cycle() } }
+    }
+
+    /// What the desktop window's toolbar and keys run changes with these.
+    private struct DesktopRegistration: Equatable {
+        let target: ObjectIdentifier?
+        let identity: MonitorOperatorLiveIdentity
+        let borrowed: Bool
+        let photo: Bool
+        let showsTimecode: Bool
+    }
+    private var desktopRegistration: DesktopRegistration {
+        .init(target: desktopCommands.map { ObjectIdentifier($0) }, identity: identity, borrowed: facts.borrowed,
+            photo: photo, showsTimecode: status.showsTimecode)
+    }
+    /// Registers Settings, Media, record, the display overlays and the take with a desktop window.
+    private func registerDesktopCommands() {
+        guard desktop, let target = desktopCommands else { return }
+        let source = source, control = control
+        let recordPress = $recordPress, displayPress = $displayPress
+        target.openSettings = { source.settings() }
+        target.openMedia = facts.borrowed ? nil : { source.media() }
+        target.toggleRecord = photo ? nil : { recordPress.wrappedValue += 1 }
+        target.toggleOverlays = { displayPress.wrappedValue += 1 }
+        let liveClock = status.liveClock, showsTimecode = status.showsTimecode
+        target.readTake = {
+            let timecode = showsTimecode ? (liveClock?() ?? source.status().recording.timecode) : nil
+            return (control.isRecording == true, timecode)
+        }
+        target.applyMonitorLook(media: photo ? .image : .film)
+    }
+    private func unregisterDesktopCommands() {
+        guard let target = desktopCommands else { return }
+        target.openSettings = nil; target.openMedia = nil; target.toggleRecord = nil
+        target.toggleOverlays = nil; target.readTake = nil
     }
 
     private func apply(_ transition: MonitorInteractionTransition) {
@@ -894,7 +938,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 else if let external = facts.record.external { externalRecordButton(external) }
                 else { MonitorCaptureButton(control: control, diameter: layout.record.width, enabled: admitted, busy: !recordEnabled,
                     confirm: facts.record.confirm, haptics: host.hapticsEnabled,
-                    openMode: facts.record.openMode.map { action in { if admitted && recordEnabled { action() } } }) }
+                    openMode: facts.record.openMode.map { action in { if admitted && recordEnabled { action() } } },
+                    pressSignal: recordPress) }
             }.modifier(ChromeEditableModifier<Host>(section: .railRecord, mode: editing))
         } display: {
             MonitorDisplayButton(selectedIndex: index, modeCount: modes.count,

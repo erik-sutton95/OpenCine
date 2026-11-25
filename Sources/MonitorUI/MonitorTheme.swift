@@ -106,8 +106,11 @@
             case .medium: face = "Medium"
             default: face = "Regular"
             }
-            return .custom("Sora-\(face)", size: size)
+            return .custom("\(fontFamily)-\(face)", size: size)
         }
+
+        /// The family of the monitor's faces, named "<family>-<face>".
+        public static let fontFamily = "Sora"
 
         /// App entry points may prewarm resources before constructing a SwiftUI tree.
         public static func prepareResources() {

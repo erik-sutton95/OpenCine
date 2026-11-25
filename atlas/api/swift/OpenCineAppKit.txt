@@ -1010,7 +1010,7 @@ init MonitorAssistState(looks: Looks, storage: Foundation.UserDefaults, keys: Mo
 init MonitorAudioPreferenceStore(storage: Foundation.UserDefaults, key: Swift.String)
 init MonitorAudioStoredCenter(_: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)
 init MonitorBrowserInternetHandoff(hop: MonitorInternetHop<Route>)<Route>
-init MonitorCaptureButton(control: MonitorControlModel, diameter: CoreGraphics.CGFloat, enabled: Swift.Bool, busy: Swift.Bool, photo: Swift.Bool, confirm: Swift.Bool, haptics: Swift.Bool, takePhoto: () -> Swift.Void, openMode: (() -> Swift.Void)?)
+init MonitorCaptureButton(control: MonitorControlModel, diameter: CoreGraphics.CGFloat, enabled: Swift.Bool, busy: Swift.Bool, photo: Swift.Bool, confirm: Swift.Bool, haptics: Swift.Bool, takePhoto: () -> Swift.Void, openMode: (() -> Swift.Void)?, pressSignal: Swift.Int)
 init MonitorCaptureChoice(value: OpenCineCore.SettingValue, label: Swift.String)
 init MonitorCaptureDrum(control: MonitorControlModel, field: MonitorCaptureField, enabled: Swift.Bool, haptics: Swift.Bool, previewPosition: Swift.Double?, previewSelection: Swift.String?, choices: [MonitorCaptureChoice]?, marked: Swift.Set<Swift.String>, onCommitted: (OpenCineCore.SettingValue) -> Swift.Void)
 init MonitorCapturePolicy(enabled: Swift.Bool, busy: Swift.Bool, pending: Swift.Bool, photo: Swift.Bool, canRecord: Swift.Bool, recording: Swift.Bool?, offersMode: Swift.Bool)
