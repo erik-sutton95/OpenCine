@@ -232,11 +232,22 @@ extension MonitorOperatorCaptureInputs where NativeIdentity == Never {
     public var frames: [Key: CGRect] = [:]
     public var ownership = MonitorReadoutOwnership()
     public private(set) var preview: MonitorOperatorCapturePreview<Key, NativeIdentity>?
+    /// The setting the scroll wheel would change, under the pointer in a Mac window
+    /// (`MonitorOperatorCaptureWheel`); its readout shows a highlight.
+    var wheelKey: Key?
+    /// The open camera panel's frame in the strip's coordinate space, where the wheel also works.
+    var panelFrame: CGRect?
+    @ObservationIgnored var wheelDial = MonitorWheelDial<Key>()
+    @ObservationIgnored var wheelFlush: Task<Void, Never>?
     @ObservationIgnored private var notifyPreview: ((Key, MonitorOperatorCapturePreview<Key, NativeIdentity>?) -> Void)?
     public init() {}
 
     public func retire() {
         clearPreview()
+        wheelFlush?.cancel()
+        wheelFlush = nil
+        wheelDial.reset()
+        wheelKey = nil
         if let owner = ownership.owner { ownership.release(owner) }
         // Invalidate an already released pointer's deferred command as well.
         let retirement = UUID()
@@ -421,6 +432,19 @@ private struct CaptureStripReadout<Key: Hashable, Section: Hashable,
         }.modifier(CaptureReadoutGesture(inputs: inputs, readout: readout, control: control,
             state: state, source: source, enabled: enabled, commandEnabled: commandEnabled,
             currentSource: currentSource))
+            .background {
+                // The setting the scroll wheel changes while the pointer rests on it (a Mac window).
+                if state.wheelKey == readout.id {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(MonitorTheme.accent.opacity(0.5), lineWidth: 1)
+                        }
+                        .padding(.horizontal, -6).padding(.vertical, -3)
+                        .allowsHitTesting(false).accessibilityHidden(true)
+                }
+            }
     }
 }
 
@@ -637,6 +661,13 @@ public struct MonitorOperatorCapturePopup<Key: Hashable, Section: Hashable,
                                 content(panel.key, place).disabled(!commandEnabled || !currentSource())
                             }
                         }.id(panel.key)
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.onChange(of: geometry.frame(in: .named(coordinateSpace)), initial: true) { _, frame in
+                                    state.panelFrame = frame
+                                }.onDisappear { state.panelFrame = nil }
+                            }
+                        }
                         // One container per open camera panel, as the operator reaches it: UI tests
                         // and assistive technology find the panel itself, not only its rows.
                         .accessibilityElement(children: .contain)

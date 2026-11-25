@@ -110,10 +110,10 @@ public struct MonitorWriteCoalescer<Value: Equatable & Sendable>: Sendable {
 /// coalesces its camera writes. A spin steps from the last value it chose while that is younger
 /// than `hold`, since the camera's report lags the spin; after that, or when the value left the
 /// list, it steps from the reported value again (a write the camera never answered is not kept).
-public struct MonitorWheelDial<Key: Hashable & Sendable>: Sendable {
+public struct MonitorWheelDial<Key: Hashable> {
     /// One scroll event's outcome: the value chosen for `key`, written now (`write`) or held
     /// until `due`.
-    public struct Turn: Equatable, Sendable {
+    public struct Turn: Equatable {
         public let key: Key
         public let value: String
         public let write: Bool
@@ -187,3 +187,6 @@ public struct MonitorWheelDial<Key: Hashable & Sendable>: Sendable {
         writes = [:]
     }
 }
+
+extension MonitorWheelDial: Sendable where Key: Sendable {}
+extension MonitorWheelDial.Turn: Sendable where Key: Sendable {}

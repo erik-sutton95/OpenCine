@@ -550,6 +550,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             cover: { EmptyView() }, recovery: { EmptyView() })
             .environment(host).environment(\.interfaceLocked, locked)
             .coordinateSpace(name: ChromeEditSpace.name).coordinateSpace(name: LiveCanvasSpace.name)
+            // The scroll wheel on the camera values in a Mac window; nothing on a phone or tablet.
+            .modifier(MonitorOperatorCaptureWheel(inputs: captureInputs, control: control, state: captureState,
+                enabled: presentationAdmitted && mounts(.cameraValues) && !command, commandEnabled: !readOnly,
+                currentSource: { current(identity) }))
             .overlayPreferenceValue(ChromeEditSectionBoundsKey<Section>.self) { boxes in
                 if let editing {
                     ChromeEditBadges<Host>(mode: editing, boxes: boxes, viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height))
