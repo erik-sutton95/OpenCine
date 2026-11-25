@@ -1211,6 +1211,7 @@ init ShellActions(diagnostics: () -> Swift.Void, reportProblem: () -> Swift.Void
 init ShellBrand(name: Swift.String, nearbyNote: Swift.String)
 init ShellModel(cameras: CamerasModel, control: MonitorControlModel)
 init StationNetworkBrand(appName: Swift.String, cameraFamily: Swift.String, cameraNetworkPrefix: Swift.String)
+init StationNetworkRows(current: Swift.String?, saved: [Swift.String], nearby: [Swift.String], isCameraNetwork: (Swift.String) -> Swift.Bool)
 init StationSetupRoute(_: OpenCineCore.RouteKind, actionTitle: Swift.String?, enabled: Swift.Bool)
 init StoredData(read: () -> Foundation.Data?, write: (Foundation.Data) -> Swift.Void)
 let AddSetupFlow.initialSelection: Swift.String?
@@ -1640,6 +1641,9 @@ let ShellModel.Monitor.id: Foundation.UUID
 let ShellModel.Monitor.ownership: ShellModel.Monitor.Ownership
 let ShellModel.cameras: CamerasModel
 let ShellModel.control: MonitorControlModel
+let StationNetworkRows.current: Swift.String?
+let StationNetworkRows.nearby: [Swift.String]
+let StationNetworkRows.saved: [Swift.String]
 protocol MonitorLookProvider<Self : AnyObject, Self.Selection : Swift.Equatable>
 protocol MonitorMediaCatalogByteStore<Self : Swift.Sendable>: Sendable
 protocol MonitorMediaCatalogCodec<Self : Swift.Sendable, Self.Payload : Swift.Sendable>: Sendable
@@ -1775,6 +1779,7 @@ static func ReliabilityReportingURLProtocol.canInit(with: Foundation.URLRequest)
 static func ReliabilityReportingURLProtocol.canonicalRequest(for: Foundation.URLRequest) -> Foundation.URLRequest
 static func ReliabilityReportingURLProtocol.makeSDKSession() -> Foundation.URLSession
 static func ShellModel.applyThroughLaunch(_: () -> Swift.Void) -> ()
+static func StationNetworkRows.emptyNote(host: OpenCineCore.HostDevice, locationDenied: Swift.Bool) -> Swift.String
 static func StationNetworkSetupRules.acceptsPassword(_: Swift.String, secured: Swift.Bool?) -> Swift.Bool
 static func StationNetworkSetupRules.isCameraNetwork(_: Swift.String, brand: StationNetworkBrand, camera: OpenCineCore.SavedCamera?, cameraSSIDs: Swift.Set<Swift.String>) -> Swift.Bool
 static func StationNetworkSetupRules.network(_: OpenCineCore.SavedCamera, _: OpenCineCore.RouteKind) -> Swift.String?
@@ -2059,6 +2064,7 @@ struct ShellActions
 struct ShellBrand: Sendable
 struct ShellModel.Monitor: Identifiable
 struct StationNetworkBrand: Equatable, Sendable
+struct StationNetworkRows: Equatable, Sendable
 struct StationSetupRoute: Equatable, Sendable
 struct StoredData
 typealias MonitorDeliveryPreparationModel.Request = MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>
@@ -2970,6 +2976,7 @@ var ShellModel.sceneActive: Swift.Bool
 var StationNetworkBrand.appName: Swift.String
 var StationNetworkBrand.cameraFamily: Swift.String
 var StationNetworkBrand.cameraNetworkPrefix: Swift.String
+var StationNetworkRows.isEmpty: Swift.Bool
 var StationNetworkSetupContext.camera: OpenCineCore.SavedCamera?
 var StationNetworkSetupContext.identifier: Swift.String
 var StationNetworkSetupContext.networkHint: Swift.String

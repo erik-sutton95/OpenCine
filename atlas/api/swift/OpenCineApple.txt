@@ -116,6 +116,7 @@ class StationWiFiNameAccess: ObjectiveC.NSObject, CVarArg, CustomDebugStringConv
 class UVCVideoSource: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class VideoToolboxDecoder: Sendable
 enum CameraHotspotSystem.Cancellation: Equatable, Hashable, Sendable
+enum ComputerWiFi
 enum DiagnosticExceptionHandler
 enum DiagnosticNetworkFacts
 enum LiveFrameDecoding
@@ -597,6 +598,8 @@ protocol MonitorPlaybackFrameSource<Self : OpenCineMedia.MonitorPlaybackPort>: M
 protocol SharedNetworkStorage<Self : Swift.Sendable>: Sendable
 static func CaptureCalibration.==(_: CaptureCalibration, _: CaptureCalibration) -> Swift.Bool
 static func CaptureCalibration.forDevice(_: CaptureDeviceIdentity?) -> CaptureCalibration
+static func ComputerWiFi.currentNetwork(timeout: Swift.Duration) -> Swift.String?
+static func ComputerWiFi.nearbyNetworks(timeout: Swift.Duration) -> [Swift.String]
 static func DiagnosticExceptionHandler.install(record: (Foundation.NSException) -> Swift.Void) -> ()
 static func DiagnosticNetworkFacts.vpnActive() -> Swift.Bool
 static func JPEGPixelBufferDecoder.dimensions(of: Foundation.Data) -> (width: Swift.Int, height: Swift.Int)?
