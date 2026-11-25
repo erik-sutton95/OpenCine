@@ -551,8 +551,11 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .environment(host).environment(\.interfaceLocked, locked)
             .coordinateSpace(name: ChromeEditSpace.name).coordinateSpace(name: LiveCanvasSpace.name)
             // The scroll wheel on the camera values in a Mac window; nothing on a phone or tablet.
+            // Not while the motion panel covers or dims the chrome, where clicks are blocked too.
             .modifier(MonitorOperatorCaptureWheel(inputs: captureInputs, control: control, state: captureState,
-                enabled: presentationAdmitted && mounts(.cameraValues) && !command, commandEnabled: !readOnly,
+                enabled: presentationAdmitted && mounts(.cameraValues) && !command && !motionCovering
+                    && cameraViews.motion?.dimmed != true,
+                commandEnabled: !readOnly,
                 currentSource: { current(identity) }))
             .overlayPreferenceValue(ChromeEditSectionBoundsKey<Section>.self) { boxes in
                 if let editing {
