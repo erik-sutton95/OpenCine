@@ -59,6 +59,8 @@ public final class LunaCameraBackend: CameraBackend {
     /// `cameraHost`s); this backend's search never probes them. Nil searches every host.
     public var stationHostsInUse: (@MainActor () -> Set<String>)?
     public private(set) var deviceInformation: LunaDeviceInformation?
+    /// The body the last connection identified (Bluetooth or the control link); `nil` before.
+    public var connectedModel: LunaModel? { deviceInformation?.lunaModel }
 
     /// App-supplied names (keychain service, operator-facing app name, log prefix).
     public let configuration: LunaIntegrationConfiguration
@@ -165,8 +167,8 @@ public final class LunaCameraBackend: CameraBackend {
             eventHandler?(
                 .discovered(
                     MonitorCamera(
-                        id: Self.existingNetworkCameraID, name: "Luna Ultra",
-                        model: LunaProtocol.model, capabilities: capabilities)))
+                        id: Self.existingNetworkCameraID, name: LunaModel.familyName,
+                        model: LunaModel.familyReportedName, capabilities: capabilities)))
             return
         }
         try await bluetooth.startScan()
@@ -729,7 +731,7 @@ public final class LunaCameraBackend: CameraBackend {
         startHeartbeat(token: token)
         let info = try LunaProtocol.deviceInformation(
             response: await send(LunaProtocol.deviceInformationRequest(includeSerial: true)))
-        guard info.model == LunaProtocol.model else {
+        guard info.lunaModel != nil else {
             throw ConnectionFailure.luna(
                 .wrongCamera, "wifi.not-luna", "The Wi-Fi device is not a supported Luna camera.",
                 phase: .negotiating)
@@ -985,7 +987,7 @@ public final class LunaCameraBackend: CameraBackend {
                     build, admission: admission, timeout: timeout,
                     didDispatch: didDispatch)
             }, backendCapabilities: { [weak self] in self?.capabilities })
-        next.configureLens(zoomDomain: 1...LunaProtocol.maximumZoomScale)
+        next.configureLens(zoomDomain: 1...(connectedModel?.maximumZoom ?? LunaProtocol.maximumZoomScale))
         session = next
         previous?.close(.replaced)
         if isControlReady { next.linkChanged(.streaming, serial: deviceInformation?.serial) }

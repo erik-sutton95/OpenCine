@@ -314,10 +314,11 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         advertisedAt[peripheral.identifier] = .now
         let name =
             (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name
-            ?? LunaProtocol.model
+            ?? LunaModel.familyReportedName
+        // A Luna advertises no model; the body is known once Bluetooth reads its identity.
         onCamera?(
             MonitorCamera(
-                id: peripheral.identifier, name: name, model: LunaProtocol.model,
+                id: peripheral.identifier, name: name, model: LunaModel.familyReportedName,
                 capabilities: [.liveVideo]))
     }
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {

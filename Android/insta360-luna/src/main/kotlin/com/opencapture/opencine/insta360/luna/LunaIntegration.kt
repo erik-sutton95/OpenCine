@@ -75,6 +75,8 @@ interface LunaConnectPort : CameraMediaServiceSource {
     val phase: StateFlow<ConnectionPhase>
     val found: StateFlow<List<CameraIdentity>>
     val joinedSSID: StateFlow<String?>
+    /** The body the last connection identified; null when none was read. */
+    val connectedModel: LunaModel? get() = null
     /** Why the last attempt failed, typed; `null` while none has. */
     val failureDetail: StateFlow<ConnectionFailure?>
     /** `true` while discovery cannot run: radio off, permission denied or the scanner refused. */
@@ -171,6 +173,15 @@ object LunaFailures {
         actions = listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry),
     )
 
+    /**
+     * Bluetooth reached a camera that is no supported Luna (Swift `model.unsupported`): it names
+     * the camera and what [appName] supports.
+     */
+    fun unsupportedModel(reported: String, appName: String) = failure(
+        ConnectionFailure.Reason.Unsupported, "model.unsupported",
+        LunaModel.unsupportedMessage(reported, appName), CorePhase.NEGOTIATING,
+    )
+
     val discoveryDenied = failure(
         ConnectionFailure.Reason.Permission(ConnectionFailure.Permission.NEARBY_DEVICES), "bluetooth.denied",
         "Allow Nearby devices and location access to discover your camera.",
@@ -200,14 +211,15 @@ class LunaIntegration(
     private val sleep: suspend (Long) -> Unit = { delay(it) },
 ) : CameraIntegration {
     override val id: IntegrationID = LunaCameraSession.INTEGRATION
+    /** One profile per supported body ([LunaModel.supported]), titled with its name. */
     override val profiles: List<CameraProfile> =
-        listOf(
+        LunaModel.supported.map { model ->
             CameraProfile(
-                "${id.rawValue}.luna-ultra", "Luna Ultra",
+                "${id.rawValue}.${model.name.lowercase().replace(' ', '-')}", model.name,
                 setOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT),
                 StationRoutes.MOVING,
-            ),
-        )
+            )
+        }
     override val discoveryModes: Set<DiscoveryMode> = setOf(DiscoveryMode.PASSIVE)
 
     /** A nearby card pairs at once (the camera approves it); setups keep their kind's name. */
@@ -490,6 +502,8 @@ class LunaIntegration(
             )
         }
         if (target is ConnectTarget.AddRoute && route != null) base = StationRoutes.adding(route, base)
+        // The sighting could not say which body it is; the connection read it.
+        port.connectedModel?.let { base = base.copy(model = it.reportedName) }
         val network = port.joinedSSID.value
         val index = base.routes.indexOfFirst { it.kind == RouteKind.CAMERA_ACCESS_POINT }
         val routes = if (index >= 0) {

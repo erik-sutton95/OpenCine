@@ -63,6 +63,8 @@ class LunaBackend(
      * backend and let go when the last one releases.
      */
     stationPath: SharedWiFiPath? = null,
+    /** The app's name in operator-facing messages ("<name> currently supports ..."). */
+    private val appName: String = "This app",
 ) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource, LunaConnectPort, LunaMediaCatalogRecordSource,
     LunaStationPort {
     companion object {
@@ -106,6 +108,9 @@ class LunaBackend(
     override val found = _found.asStateFlow()
     private val _connected = MutableStateFlow<CameraIdentity?>(null)
     override val connected = _connected.asStateFlow()
+    /** The body this connection identified (Bluetooth or the control link); null before. */
+    @Volatile override var connectedModel: LunaModel? = null
+        private set
     private val _snapshot = MutableStateFlow(CameraSnapshot())
     override val snapshot = _snapshot.asStateFlow()
     private val _failure = MutableStateFlow<String?>(null)
@@ -217,8 +222,9 @@ class LunaBackend(
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val record = result.scanRecord ?: return
             if (record.serviceUuids?.contains(ParcelUuid(LunaGatt.SERVICE)) != true) return
-            val name = record.deviceName ?: result.device.name ?: "Luna Ultra"
-            val identity = CameraIdentity(result.device.address, name, "Insta360 Luna Ultra")
+            // A Luna advertises no model; the body is known once Bluetooth reads its identity.
+            val name = record.deviceName ?: result.device.name ?: LunaModel.FAMILY_NAME
+            val identity = CameraIdentity(result.device.address, name, LunaModel.FAMILY_REPORTED_NAME)
             _found.update { cameras -> (cameras.filterNot { it.id == identity.id } + identity).sortedBy { it.advertisedName } }
         }
         override fun onScanFailed(code: Int) { scanActive = false; _scanBlocked.value = true; fail(LunaFailures.scanFailed(code)); setPhase(ConnectionPhase.FAILED) }
@@ -283,12 +289,14 @@ class LunaBackend(
             previous?.join()
             _failure.value = null; _failureDetail.value = null; _stationNote.value = null
             cameraHost = CAMERA_HOST
-            _connected.value = _found.value.firstOrNull { it.id == id } ?: CameraIdentity(id, "Luna Ultra", "Insta360 Luna Ultra")
+            connectedModel = null
+            _connected.value = _found.value.firstOrNull { it.id == id } ?: CameraIdentity(id, LunaModel.FAMILY_NAME, LunaModel.FAMILY_REPORTED_NAME)
             try { runCamera(id, frameGeneration, route, lanOnly) }
             catch (error: Exception) {
                 // A withTimeout inside (GATT, greeting) is a CancellationException too; only a real cancel propagates.
                 if (error is CancellationException && !isActive) throw error
-                fail((error as? LunaStationFailure)?.failure ?: LunaFailures.connect(_phase.value, advertising = _found.value.any { it.id == id }))
+                fail((error as? LunaStationFailure)?.failure ?: (error as? LunaUnsupportedCamera)?.failure
+                    ?: LunaFailures.connect(_phase.value, advertising = _found.value.any { it.id == id }))
                 setPhase(ConnectionPhase.FAILED)
             } finally { cleanup() }
         }
@@ -576,7 +584,7 @@ class LunaBackend(
 
     /** A station step's failure with the copy the backend shows for its phase. */
     private fun stationStepFailure(error: Exception, advertising: Boolean): ConnectionFailure =
-        (error as? LunaStationFailure)?.failure ?: LunaFailures.connect(_phase.value, advertising)
+        (error as? LunaStationFailure)?.failure ?: (error as? LunaUnsupportedCamera)?.failure ?: LunaFailures.connect(_phase.value, advertising)
 
     /**
      * Whether a Luna answers its control port at [host] on [network] (the greeting probe the station
@@ -697,8 +705,15 @@ class LunaBackend(
         agreed = { link.key = it },
         approvals = { link.approvals.receive() },
         phase = { if (reports) setPhase(it) },
-        identified = { if (reports) _snapshot.value = CameraSnapshot(firmware = it) },
+        identified = { model, firmware -> if (reports) { identified(model); _snapshot.value = CameraSnapshot(firmware = firmware) } },
+        appName = appName,
     )
+
+    /** The connection reached [model]: the connected camera carries its name and lens range from now on. */
+    private fun identified(model: LunaModel) {
+        connectedModel = model
+        _connected.update { camera -> camera?.copy(modelName = model.reportedName) }
+    }
 
     /**
      * The control link and live session on [cameraSocket]. A camera whose serial is not
@@ -744,8 +759,9 @@ class LunaBackend(
             withTimeout(8_000) { channel.greeting.await() }
             heartbeat = launch { try { while (isActive) { channel.heartbeat(); delay(2_000) } } catch (error: Exception) { channel.fail(error) } }
             val tcpInfo = LunaWire.bytes(channel.request(8, LunaDeviceIdentity.request), 2)
-            check(LunaWire.text(tcpInfo, 48) == "Insta360 Luna Ultra")
+            val tcpModel = checkNotNull(LunaModel.identify(LunaWire.text(tcpInfo, 48))) { "The Wi-Fi device is not a supported Luna camera" }
             LunaDeviceIdentity.mismatch(tcpInfo, expectedSerial)?.let { anotherCamera = true; throw LunaStationFailure(it) }
+            identified(tcpModel)
             check(LunaWire.number(channel.request(39, authBody), 1) == 0L) { "TCP identity was not authorized" }
             if (station != null) keepAlive = launch {
                 LunaStationKeepAlive.run(station, send = { code, body -> channel.request(code, body) }, log = { android.util.Log.i("LunaBackend", it) })
@@ -1031,7 +1047,9 @@ class LunaBackend(
     }
 
     // Controls. Same requests as the iOS session; each needs the live TCP control channel.
-    override val zoomRange: ClosedFloatingPointRange<Double> = 1.0..LunaControl.MAXIMUM_ZOOM
+    /** 1x to the identified body's maximum; the protocol's 1...15 before a body is known. */
+    override val zoomRange: ClosedFloatingPointRange<Double>
+        get() = 1.0..(connectedModel?.maximumZoom ?: LunaControl.MAXIMUM_ZOOM)
     private suspend fun send(build: () -> LunaControl.Request): Boolean {
         val channel = tcp ?: return false
         if (_phase.value != ConnectionPhase.LIVE) return false

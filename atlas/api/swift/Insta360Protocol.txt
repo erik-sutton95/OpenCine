@@ -257,6 +257,7 @@ init LunaGimbalPoseEstimator()
 init LunaIMUSample(milliseconds: Swift.UInt64, accel: Swift.SIMD3<Swift.Double>, gyro: Swift.SIMD3<Swift.Double>)
 init LunaMediaFile(uri: Swift.String, metadata: LunaFileMetadata?)
 init LunaMediaPacket(frame: UCD2Frame) throws
+init LunaModel(reportedName: Swift.String, name: Swift.String, hasTelephoto: Swift.Bool, maximumZoom: Swift.Double, zoomPresets: [Swift.Double], hardwareQualified: Swift.Bool)
 init LunaNotification(code: Swift.UInt16, body: Foundation.Data) throws
 init LunaNotification(message: UCD2Message) throws
 init LunaPhotoSize(rawValue: Swift.UInt64)
@@ -283,6 +284,12 @@ let LunaIMUSample.milliseconds: Swift.UInt64
 let LunaMediaPacket.bytes: Foundation.Data
 let LunaMediaPacket.subtype: Swift.UInt8
 let LunaMediaPacket.timestamp: Swift.UInt64
+let LunaModel.hardwareQualified: Swift.Bool
+let LunaModel.hasTelephoto: Swift.Bool
+let LunaModel.maximumZoom: Swift.Double
+let LunaModel.name: Swift.String
+let LunaModel.reportedName: Swift.String
+let LunaModel.zoomPresets: [Swift.Double]
 let LunaPhotoSize.height: Swift.Int
 let LunaPhotoSize.rawValue: Swift.UInt64
 let LunaPhotoSize.width: Swift.Int
@@ -324,6 +331,9 @@ let UCD2Message.reserved: Swift.UInt16
 let UCD2Reassembler.maximumFrameSize: Swift.Int
 static func LunaColorMode.recordingDrum(current: LunaColorMode?) -> [LunaColorMode]
 static func LunaGimbalPoseEstimator.gravityPitchDeg(_: Swift.SIMD3<Swift.Double>) -> Swift.Double
+static func LunaModel.identify(_: Swift.String) -> LunaModel?
+static func LunaModel.isLunaFamily(_: Swift.String) -> Swift.Bool
+static func LunaModel.unsupportedMessage(reported: Swift.String, appName: Swift.String) -> Swift.String
 static func LunaProtocol.acceptsStationNetwork(ssid: Swift.String, password: Swift.String) -> Swift.Bool
 static func LunaProtocol.authorizationCheck(identity: Foundation.UUID) throws -> LunaRequest
 static func LunaProtocol.authorizationStatus(response: Foundation.Data) throws -> LunaAuthorizationStatus
@@ -425,6 +435,11 @@ static let LunaColorMode.nativeRecordingChoices: [LunaColorMode]
 static let LunaGimbalPoseEstimator.gravityWeight: Swift.Double
 static let LunaGimbalPoseEstimator.stillRadPerSec: Swift.Double
 static let LunaGimbalPoseEstimator.stillWindowSeconds: Swift.Double
+static let LunaModel.familyName: Swift.String
+static let LunaModel.familyReportedName: Swift.String
+static let LunaModel.pro: LunaModel
+static let LunaModel.supported: [LunaModel]
+static let LunaModel.ultra: LunaModel
 static let LunaProtocol.albumAccessState: Swift.UInt64
 static let LunaProtocol.bluetoothNotifyUUID: Swift.String
 static let LunaProtocol.bluetoothServiceUUID: Swift.String
@@ -477,6 +492,7 @@ static let UCD2Frame.messageType: Swift.UInt8
 static let UCD2Frame.minimumSize: Swift.Int
 static let UCD2Message.identifierMask: Swift.UInt32
 static let UCD2Message.requestFlags: Swift.UInt32
+static var LunaModel.supportedNames: Swift.String
 struct LunaBattery: Equatable, Sendable
 struct LunaCaptureStatus: Equatable, Sendable
 struct LunaDeviceInformation: Equatable, Sendable
@@ -491,6 +507,7 @@ struct LunaIMUSample: Equatable, Sendable
 struct LunaLiveStreamParameters: Equatable, Sendable
 struct LunaMediaFile: Equatable, Sendable
 struct LunaMediaPacket: Equatable, Sendable
+struct LunaModel: Equatable, Hashable, Sendable
 struct LunaPhotoSize: Equatable, Sendable
 struct LunaPhotographySettings: Equatable, Sendable
 struct LunaProtocol.PhotographyReading: Equatable, Sendable
@@ -524,6 +541,7 @@ var LunaCaptureStatus.panoFramesTotal: Swift.UInt64
 var LunaCaptureStatus.state: Swift.UInt64
 var LunaCaptureStatus.submode: Swift.UInt64
 var LunaColorMode.label: Swift.String
+var LunaDeviceInformation.lunaModel: LunaModel?
 var LunaDeviceStatus.battery: LunaBattery?
 var LunaDeviceStatus.cameraPosture: Swift.UInt64?
 var LunaDeviceStatus.cardLocationLastUpdate: Swift.UInt64?
@@ -589,6 +607,7 @@ var LunaMediaFile.uri: Swift.String
 var LunaMediaPacket.hevcAnnexB: Foundation.Data?
 var LunaMediaPacket.imuSamples: [LunaIMUSample]?
 var LunaMediaPacket.trackFrame: LunaTrackFrame?
+var LunaModel.opticalZoomStops: [Swift.Double]
 var LunaNotification.shootingMode: LunaShootingMode?
 var LunaPhotoSize.aspectLabel: Swift.String
 var LunaPhotographySettings.afMode: Swift.UInt64?

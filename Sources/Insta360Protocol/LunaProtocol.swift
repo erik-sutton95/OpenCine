@@ -269,7 +269,8 @@ public struct LunaRequestCounter: Sendable {
 }
 
 public enum LunaProtocol {
-    public static let model = "Insta360 Luna Ultra"
+    /// The Luna Ultra's reported model. Which bodies connect is `LunaModel.supported`.
+    public static let model = LunaModel.ultra.reportedName
     public static let bluetoothServiceUUID = "0000BE80-0000-1000-8000-00805F9B34FB"
     public static let bluetoothWriteUUID = "0000BE81-0000-1000-8000-00805F9B34FB"
     public static let bluetoothNotifyUUID = "0000BE82-0000-1000-8000-00805F9B34FB"
@@ -669,8 +670,10 @@ public enum LunaProtocol {
 
     public static func deviceInformation(response: Data) throws -> LunaDeviceInformation {
         let options = try responseOptions(response)
+        // Any Insta360 camera on BE80 answers; the caller decides which bodies it supports
+        // (`LunaModel.identify`), so a refused camera can be named.
         let reportedModel = try options.string(48)
-        guard reportedModel == model else { throw LunaProtocolError.unexpectedModel }
+        guard !reportedModel.isEmpty, reportedModel.utf8.count <= 128 else { throw LunaProtocolError.unexpectedModel }
         let firmware = try options.string(30)
         guard !firmware.isEmpty, firmware.utf8.count <= 128 else { throw LunaProtocolError.invalidField(30) }
         let serial: String?

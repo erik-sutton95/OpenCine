@@ -36,14 +36,43 @@ not hardware-qualified (station routes only), `LunaScreenRecovery` (Color Recove
 (NEHotspotConfiguration) compile only for iOS devices; macOS and the simulator ask the operator to
 join the camera Wi-Fi.
 
+## Supported bodies
+
+`LunaModel` (Swift `Insta360Protocol`, Kotlin `insta360-luna`, same members) lists the bodies the
+integration connects to. Insta360's Bluetooth service BE80 is shared by more of its cameras, so the
+Bluetooth authorization and the control link read the model string (device-information option
+48) and go on only for a listed body; `LunaModel.identify` compares the known strings without case,
+extra spaces or the "Insta360" prefix. Any other camera is refused with `model.unsupported`
+("This camera is Insta360 ONE RS. <app> currently supports the Insta360 Luna Ultra and Luna
+Pro."); an unknown Luna variant ("Insta360 Luna ...") is refused the same way and named as a Luna
+model not supported yet, because its wire behavior is unverified.
+
+| Body | Reported model | Telephoto | Zoom | Presets | Status |
+|---|---|---|---|---|---|
+| Luna Ultra | `Insta360 Luna Ultra` | 3x | 1x to 15x | 1, 2, 3, 6, 15 | hardware-qualified |
+| Luna Pro | `Insta360 Luna Pro` (assumed) | none | 1x to 4x | 1, 2, 4 | untested |
+
+The Luna Pro is untested: no Pro has connected to this integration. Its model string is the
+product name in Insta360's Luna Pro manual and its lens figures come from that manual (one 1-inch
+main camera, the Ultra's; 2x lossless, 4x maximum, no 3x telephoto), not from a camera. A Pro
+that reports another string is refused by name, which tells us the string to add.
+
+A Luna advertises its serial's end and no model, so a sighting carries the family name ("Luna
+1A2B", model "Luna"; Kotlin "Insta360 Luna"). The connection identifies the body: the saved
+camera takes its name (`LunaConnectPort.connectedModel`; Swift the profile title "Luna Pro",
+Kotlin the reported "Insta360 Luna Pro"), each body has its own `CameraProfile`, and the session's
+lens range is the body's (`configureLens`, `LunaBackend.zoomRange`). Apps take presets and the
+telephoto from `LunaModel`: a body without a telephoto shows no 3x stop and no TELE caption
+(`MonitorLiveScreenSession.opticalZoomStops`).
+
 ## Integration contract (SHELL-02)
 
 `LunaIntegration` (Swift `Insta360Apple`, Kotlin `insta360-luna`) is Luna's Core
 `CameraIntegration`, over a `LunaConnectPort` that `LunaCameraBackend` / `LunaBackend` implement:
 
 - Discovery is `.passive` only: Bluetooth advertisements (service BE80); listening never connects.
-  iOS sightings are named like the cameras page always named them (`title(advertised:)`, "Luna
-  Ultra 1A2B" from an advertised "1A2B") with the profile title as the model. A scan that cannot
+  iOS sightings are named `title(advertised:)` ("Luna 1A2B" from an advertised "1A2B") with the
+  family name "Luna" as the model: the body is known only once a connection reads it. A scan that cannot
   start (Bluetooth off or not allowed) keeps discovery subscribed and is published as
   `discoveryFailure` / `onDiscoveryFailure` for the app's pairing slot; `retryDiscovery()` starts it
   again.
@@ -353,7 +382,7 @@ xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNIN
 ```
 
 Hardware behavior (pairing, Wi-Fi join, settle timing) is qualified only on a physical Luna Ultra
-through the consuming app.
+through the consuming app. The Luna Pro is untested ([Supported bodies](#supported-bodies)).
 
 ## Kotlin (Android/)
 

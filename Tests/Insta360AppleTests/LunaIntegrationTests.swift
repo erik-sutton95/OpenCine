@@ -17,7 +17,7 @@ import Testing
     func integration() -> LunaIntegration { LunaIntegration(port: port, now: { [when] in when }) }
 
     func sighting() -> NearbyCamera {
-        NearbyCamera(id: camera.uuidString, name: "Luna 1A2B", model: "Luna Ultra", routes: [.cameraAccessPoint])
+        NearbyCamera(id: camera.uuidString, name: "Luna 1A2B", model: "Luna", routes: [.cameraAccessPoint])
     }
 
     @Test func discoveryListensPassivelyOverBluetooth() async {
@@ -40,15 +40,43 @@ import Testing
         #expect(await eventually { port.scanStops == 1 })
     }
 
-    @Test func sightingsNameTheCameraAfterItsModel() async {
-        #expect(LunaIntegration.title(advertised: " 1A2B3C ") == "Luna Ultra 1A2B3C")
+    /// A Luna advertises its serial's end and no model, so a sighting reads "Luna", never a body
+    /// it may not be (a Luna Pro is no Luna Ultra).
+    @Test func sightingsNameTheCameraAfterItsFamily() async {
+        #expect(LunaIntegration.title(advertised: " 1A2B3C ") == "Luna 1A2B3C")
         #expect(LunaIntegration.title(advertised: "Luna Ultra 1A2B") == "Luna Ultra 1A2B")
-        #expect(LunaIntegration.title(advertised: "") == "Luna Ultra")
+        #expect(LunaIntegration.title(advertised: "Luna Pro 1A2B") == "Luna Pro 1A2B")
+        #expect(LunaIntegration.title(advertised: "") == "Luna")
         let luna = integration()
         var iterator = luna.discover(.passive).makeAsyncIterator()
         _ = await iterator.next()
-        port.emit(.discovered(MonitorCamera(id: camera, name: "1A2B", model: LunaProtocol.model, capabilities: [])))
-        #expect(await iterator.next()?.map(\.name) == ["Luna Ultra 1A2B"])
+        port.emit(.discovered(MonitorCamera(id: camera, name: "1A2B", model: LunaModel.familyReportedName, capabilities: [])))
+        let sightings = await iterator.next()
+        #expect(sightings?.map(\.name) == ["Luna 1A2B"] && sightings?.map(\.model) == ["Luna"])
+    }
+
+    /// Each supported body has its own profile; the saved camera is named after the body the
+    /// connection identified, not the sighting's family name. Kotlin mirror, same name.
+    @Test func aConnectedCameraIsSavedAsTheBodyItReported() async throws {
+        let luna = integration()
+        #expect(luna.profiles.map(\.title) == ["Luna Ultra", "Luna Pro"])
+        #expect(luna.profiles.map(\.id) == ["\(luna.id.rawValue).luna-ultra", "\(luna.id.rawValue).luna-pro"])
+        for model in LunaModel.supported {
+            port.connectedModel = model
+            let events = luna.connect(.nearby(sighting()))
+            #expect(await eventually { port.connects.count == LunaModel.supported.firstIndex(of: model)! + 1 })
+            port.finishConnect()
+            var saved: SavedCamera?
+            for await case .connected(let camera) in events { saved = camera.saved }
+            #expect(saved?.model == model.name)
+        }
+        port.connectedModel = nil
+        let events = luna.connect(.nearby(sighting()))
+        #expect(await eventually { port.connects.count == 3 })
+        port.finishConnect()
+        var saved: SavedCamera?
+        for await case .connected(let camera) in events { saved = camera.saved }
+        #expect(saved?.model == "Luna", "a port that cannot identify the body keeps the family name")
     }
 
     @Test func aScanThatCannotStartIsReportedAndRetried() async {
@@ -189,9 +217,10 @@ import Testing
     }
 
     @Test func theLunaOffersWiFiAndHotspotSetups() {
-        let profile = integration().profiles[0]
-        #expect(profile.addableRoutes == [.infrastructureNetwork, .phoneHotspot])
-        #expect(profile.routes == [.cameraAccessPoint, .infrastructureNetwork, .phoneHotspot])
+        for profile in integration().profiles {
+            #expect(profile.addableRoutes == [.infrastructureNetwork, .phoneHotspot])
+            #expect(profile.routes == [.cameraAccessPoint, .infrastructureNetwork, .phoneHotspot])
+        }
     }
 
     /// Add setup › Wi-Fi: the camera moves onto the network over Bluetooth, the password is kept
@@ -274,6 +303,7 @@ import Testing
         #expect(remembered.id == camera.uuidString && remembered.preferredRoute == wifi.id, "remembered before the camera moves")
         port.joinedNetwork = "LUNA-1A2B"
         port.connectedSerial = "SN-LUNA"
+        port.connectedModel = .ultra
         port.finishConnect()
         var connected: ConnectedCamera?
         for await case .connected(let camera) in events { connected = camera }

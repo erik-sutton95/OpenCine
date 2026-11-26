@@ -42,6 +42,9 @@
         var sessionRecovery: SessionRecoveryState { get }
         var zoomMax: Double { get }
         var zoomStops: [Double] { get }
+        /// The factors a lens gives without a crop (the zoom dial's optical marks and the tele
+        /// caption). A camera without a telephoto lists only 1x.
+        var opticalZoomStops: [Double] { get }
         var zoomDialReadout: Double { get }
         var zoomOptimistic: Double? { get }
         var zoomStop: Double { get }
@@ -62,6 +65,11 @@
         func cancelProgrammedGimbalMove()
         /// The photo shutter.
         func takeLivePhoto()
+    }
+
+    extension MonitorLiveScreenSession {
+        /// Without a declared lens set: 1x, and 3x when it is one of the zoom stops.
+        public var opticalZoomStops: [Double] { zoomStops.contains(3) ? [1, 3] : [1] }
     }
 
     /// The app model behind the live screen, with the values that stay the app's.
@@ -286,7 +294,7 @@
 
         private var zoomSource: MonitorOperatorZoomPresentation {
             MonitorOperatorZoomPresentation(maximum: model.session.zoomMax,
-                opticalStops: model.session.zoomStops.contains(3) ? [1, 3] : [1],
+                opticalStops: model.session.opticalZoomStops,
                 caption: model.liveZoomCaption,
                 readValue: { model.session.zoomDialReadout },
                 readOrigin: { model.session.status.zoomFactor ?? model.session.zoomOptimistic ?? model.session.zoomStop },

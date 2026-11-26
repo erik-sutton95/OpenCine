@@ -1,10 +1,14 @@
 package com.opencapture.opencine.insta360.luna
 
+import com.opencapture.opencine.core.ConnectionFailure
 import com.opencapture.opencine.insta360.shell.ConnectionPhase
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** The camera is no Luna Ultra this integration supports, or its encrypted identity did not match. */
-internal class LunaUnsupportedCamera(message: String) : IllegalStateException(message)
+/**
+ * The camera is no Luna this integration supports ([LunaModel.supported]), or its encrypted
+ * identity did not match. [failure] is the operator copy when the camera named another model.
+ */
+internal class LunaUnsupportedCamera(message: String, val failure: ConnectionFailure? = null) : IllegalStateException(message)
 
 /**
  * The Bluetooth authorization a connect and a return to the access point share (Swift twin
@@ -21,8 +25,10 @@ internal class LunaBluetoothAuthorization(
     private val approvals: suspend () -> LunaWire.Message,
     /** The connect phase each step starts; a return to the access point reports none. */
     private val phase: (ConnectionPhase) -> Unit = {},
-    /** The camera's firmware once Bluetooth read its identity. */
-    private val identified: (firmware: String) -> Unit = {},
+    /** The camera's body and firmware once Bluetooth read its identity. */
+    private val identified: (model: LunaModel, firmware: String) -> Unit = { _, _ -> },
+    /** The app's name in the unsupported-camera message. */
+    private val appName: String = "This app",
 ) {
     /**
      * The serial Bluetooth read and the credential read's reply. A camera that does not approve this
@@ -30,16 +36,19 @@ internal class LunaBluetoothAuthorization(
      */
     suspend fun run(authBody: ByteArray): Pair<String, ByteArray> {
         val initial = LunaWire.bytes(request(8, LunaDeviceIdentity.request, false), 2)
-        if (LunaWire.text(initial, 48) != MODEL) throw LunaUnsupportedCamera("Unexpected camera model")
+        // BE80 is shared by more Insta360 cameras. Only a supported Luna body goes on.
+        val reported = LunaWire.text(initial, 48)
+        val model = LunaModel.identify(reported)
+            ?: throw LunaUnsupportedCamera("Unexpected camera model", LunaFailures.unsupportedModel(reported, appName))
         val serial = LunaDeviceIdentity.serial(initial) ?: throw LunaStationFailure(LunaDeviceIdentity.serialMissing)
-        identified(LunaWire.text(initial, 30))
+        identified(model, LunaWire.text(initial, 30))
         phase(ConnectionPhase.PAIRING)
         val schemes = LunaWire.schemes(request(240, ByteArray(0), false))
         if (3L !in schemes) throw LunaUnsupportedCamera("AES-GCM is not supported")
         val pair = LunaWire.keyPair()
         agreed(LunaWire.exchange(pair, request(241, LunaWire.integer(1, 3) + LunaWire.blob(2, LunaWire.publicBytes(pair)), false)))
         val verified = LunaWire.bytes(request(8, LunaWire.options(48, 30), true), 2)
-        if (LunaWire.text(verified, 48) != MODEL) throw LunaUnsupportedCamera("The encrypted camera identity did not match")
+        if (LunaWire.text(verified, 48) != reported) throw LunaUnsupportedCamera("The encrypted camera identity did not match")
         when (LunaWire.number(request(39, authBody, false), 1)) {
             0L -> Unit
             1L -> {
@@ -60,7 +69,4 @@ internal class LunaBluetoothAuthorization(
         return serial to request(8, LunaWire.options(36, 37, 43), true)
     }
 
-    private companion object {
-        const val MODEL = "Insta360 Luna Ultra"
-    }
 }
