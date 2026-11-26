@@ -133,6 +133,12 @@ toolbar's Media and Settings over SHARE.
   destinations, so the menu reaches them through Open and Share.
 - The window's secondary-click router no longer registers the Media scroll view, and the cell no
   longer registers itself, so nothing else answers a right-click on a cell and the menu opens.
+- The router also skips every region outside the window's front presentation. The shell's own
+  covers (Media, Settings) already hide the live monitor under them, but a page presented as a
+  full-screen cover (Multiview over the live monitor, the clip and photo viewers over Media)
+  leaves the views underneath mounted and shown, so a right-click there could reach a region
+  underneath (the picture's long press). Now a region takes a click only when nothing is
+  presented over it.
 
 ## How it is checked
 
@@ -144,7 +150,7 @@ toolbar's Media and Settings over SHARE.
 - Phone and tablet layout tests unchanged.
 - Media menu entries per source permissions and selection state (`MonitorMediaContextMenuTests`),
   and on iOS the Mac menu modifier adds no context menu interaction while a plain `contextMenu`
-  does (`MonitorSecondaryClickTests`).
+  does, and a region under a presented page takes no click (`MonitorSecondaryClickTests`).
 - On the Mac: screenshots of each module window (tabs, toolbar, the cameras page and a live feed
   where a camera is on).
 
