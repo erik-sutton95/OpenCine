@@ -1,4 +1,4 @@
-# OpenCine desktop: clean tabs, the take in the feed, one set of Media and Settings, right-click, nothing under the title bar
+# OpenCine desktop: clean tabs, the take in the feed, one set of Media and Settings, right-click, nothing under the title bar, a Media menu
 
 Date: 2026-11-26. Five changes the owner approved or reported for the Mac camera window. This builds on
 `2026-11-25-desktop-camera-window-toolbar-design.md` and
@@ -82,8 +82,7 @@ Per site:
 | Zoom preset slot | save the current zoom | save |
 | Assist palette tool | tool options | the options |
 | Floating scope panel | panel options | the options |
-| Media cell (browsing) | start selecting | start selecting |
-| Media grid (UIKit selection) | hold to select, then sweep | selects the clicked clip |
+| Media cell (grid or list) | hold to select, then sweep | the cell's menu (section 6) |
 | Camera card (cameras page) | none ("..." button) | Rename, Remove menu |
 | Photo screen picture | lock or unlock focus | the same |
 | Pocket and Luna assist tool row | tool options | the options |
@@ -113,6 +112,28 @@ toolbar's Media and Settings over SHARE.
   Multiview's live slot and every sheet (LUT picker and the others).
 - iPhone and iPad are unchanged: the change is in the Mac module host only.
 
+## 6. A right-click menu on Media cells
+
+- On a Mac, right-clicking (or Control-clicking) a clip or photo in Media opens a native menu,
+  in place of the earlier right-click that started selecting. iPhone and iPad keep the hold that
+  starts selecting and get no menu.
+- One place for all three modules: `MonitorMediaCatalog` (MonitorUI) attaches it to every cell,
+  and `MonitorMediaContextMenu` (MonitorPresentation) decides the entries. Each entry sends the
+  catalog's existing intents, so every action runs through the source's own operations and the
+  existing delete confirmation.
+- Entries, in order: Open (browsing only, as a click; in selection mode a click toggles),
+  Favorite or Unfavorite (one item, disabled where the cell's star is), Share, Select or Deselect,
+  Delete (destructive, after a separator).
+- Share and Delete follow the selection bar: disabled unless every item they act on allows them.
+  Right-clicking an item inside the selection acts on the whole selection ("Share 3 Items",
+  "Delete 3 Items"); anywhere else they act on that item alone and the selection is put back as
+  it was (or selection mode is left, when browsing).
+- Not in the menu: Info and a separate Download or Save. Neither is a catalog action; Info is the
+  viewer's own panel (Open, then Info), and download or save is in the Share sheet's
+  destinations, so the menu reaches them through Open and Share.
+- The window's secondary-click router no longer registers the Media scroll view, and the cell no
+  longer registers itself, so nothing else answers a right-click on a cell and the menu opens.
+
 ## How it is checked
 
 - Layout tests: desktop take band at the picture's top across window shapes and picture
@@ -121,6 +142,9 @@ toolbar's Media and Settings over SHARE.
 - Cameras page buttons per chrome style; tab dot per state; the secondary click attaches on the
   Mac only.
 - Phone and tablet layout tests unchanged.
+- Media menu entries per source permissions and selection state (`MonitorMediaContextMenuTests`),
+  and on iOS the Mac menu modifier adds no context menu interaction while a plain `contextMenu`
+  does (`MonitorSecondaryClickTests`).
 - On the Mac: screenshots of each module window (tabs, toolbar, the cameras page and a live feed
   where a camera is on).
 
