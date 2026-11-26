@@ -169,6 +169,13 @@ case MonitorMediaAction.selectAll
 case MonitorMediaAction.selection(Swift.Set<Swift.String>)
 case MonitorMediaAction.shareSelection
 case MonitorMediaAction.thumbnailSize(MonitorThumbnailSize)
+case MonitorMediaContextMenu.Command.delete
+case MonitorMediaContextMenu.Command.deselect
+case MonitorMediaContextMenu.Command.favorite
+case MonitorMediaContextMenu.Command.open
+case MonitorMediaContextMenu.Command.select
+case MonitorMediaContextMenu.Command.share
+case MonitorMediaContextMenu.Command.unfavorite
 case MonitorMediaDeliveryValue.Action.back
 case MonitorMediaDeliveryValue.Action.begin
 case MonitorMediaDeliveryValue.Action.close
@@ -339,6 +346,7 @@ enum MonitorLinkHealthBand: Equatable, Hashable, Sendable
 enum MonitorLiveViewGeometrySpace: Equatable, Hashable, Sendable
 enum MonitorLiveViewViewport
 enum MonitorMediaAction: Equatable, Sendable
+enum MonitorMediaContextMenu.Command: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorMediaDeliveryValue.Action: Equatable, Sendable
 enum MonitorMediaDeliveryValue.Option: Equatable, Hashable, Sendable
 enum MonitorMediaDeliveryValue.Selection: Equatable, Hashable, Sendable
@@ -438,6 +446,7 @@ func MonitorLayoutRegion.inset(_: MonitorEdgeInsets) -> MonitorLayoutRegion
 func MonitorLayoutRegion.insetBy(dx: Swift.Double, dy: Swift.Double) -> MonitorLayoutRegion
 func MonitorLayoutRegion.intersects(_: MonitorLayoutRegion) -> Swift.Bool
 func MonitorLayoutRegion.offsetBy(dx: Swift.Double, dy: Swift.Double) -> MonitorLayoutRegion
+func MonitorMediaContextMenu.entry(_: MonitorMediaContextMenu.Command) -> MonitorMediaContextMenu.Entry?
 func MonitorMediaDragSelection.move(to: Swift.Int) -> Swift.Bool
 func MonitorMediaMasonry.Frame.contains(x: Swift.Double, y: Swift.Double) -> Swift.Bool
 func MonitorMediaMasonry.index(atX: Swift.Double, y: Swift.Double) -> Swift.Int?
@@ -586,6 +595,7 @@ init MonitorLegalDocuments(wordmark: Swift.String, privacy: MonitorLegalDocument
 init MonitorLinkHealthBand(bars: Swift.Int)
 init MonitorLinkHealthBand(score: Swift.Int)
 init MonitorMediaCategory(id: Swift.String, title: Swift.String, count: Swift.Int)
+init MonitorMediaContextMenu(item: Swift.String, favorite: Swift.Bool, permissions: MonitorMediaPermissions, selecting: Swift.Bool, selectedIDs: Swift.Set<Swift.String>, selectedPermissions: (Swift.String) -> MonitorMediaPermissions?)
 init MonitorMediaDeliveryProgressDetailsValue(filename: Swift.String?, destination: Swift.String?)
 init MonitorMediaDeliveryProgressValue(status: Swift.String, batch: Swift.String?, fraction: Swift.Double, preparing: Swift.Bool, showsProgress: Swift.Bool?)
 init MonitorMediaDeliveryValue(step: MonitorMediaDeliveryValue.Step, title: Swift.String, selectionLabel: Swift.String, notices: [MonitorMediaDeliveryValue.Notice], destinations: [MonitorMediaDeliveryValue.Destination], upcoming: [Swift.String], service: MonitorMediaDeliveryValue.Service?, export: MonitorMediaDeliveryValue.Export?, footer: MonitorMediaDeliveryValue.Footer?, status: Swift.String?)
@@ -771,6 +781,11 @@ let MonitorLegalDocuments.wordmark: Swift.String
 let MonitorMediaCategory.count: Swift.Int
 let MonitorMediaCategory.id: Swift.String
 let MonitorMediaCategory.title: Swift.String
+let MonitorMediaContextMenu.Entry.actions: [MonitorMediaAction]
+let MonitorMediaContextMenu.Entry.command: MonitorMediaContextMenu.Command
+let MonitorMediaContextMenu.Entry.enabled: Swift.Bool
+let MonitorMediaContextMenu.Entry.title: Swift.String
+let MonitorMediaContextMenu.entries: [MonitorMediaContextMenu.Entry]
 let MonitorMediaDeliveryProgressDetailsValue.destination: Swift.String?
 let MonitorMediaDeliveryProgressDetailsValue.filename: Swift.String?
 let MonitorMediaDeliveryProgressValue.batch: Swift.String?
@@ -1463,6 +1478,8 @@ struct MonitorLaunchLayout: Equatable, Sendable
 struct MonitorLayoutRegion: Equatable, Sendable
 struct MonitorLegalDocuments: Equatable, Sendable
 struct MonitorMediaCategory: Equatable, Identifiable, Sendable
+struct MonitorMediaContextMenu.Entry: Equatable, Identifiable, Sendable
+struct MonitorMediaContextMenu: Equatable, Sendable
 struct MonitorMediaDeliveryProgressDetailsValue: Equatable, Sendable
 struct MonitorMediaDeliveryProgressValue: Equatable, Sendable
 struct MonitorMediaDeliveryValue.Choice: Equatable, Identifiable, Sendable
@@ -1809,6 +1826,9 @@ var MonitorLegalPage.id: Swift.String
 var MonitorLegalPage.title: Swift.String
 var MonitorLevelStyle.id: Swift.String
 var MonitorLevelStyle.title: Swift.String
+var MonitorMediaContextMenu.Entry.destructive: Swift.Bool
+var MonitorMediaContextMenu.Entry.id: MonitorMediaContextMenu.Command
+var MonitorMediaContextMenu.commands: [MonitorMediaContextMenu.Command]
 var MonitorMediaDeliveryValue.Service.selectedProjectLabel: Swift.String?
 var MonitorMediaDragSelection.selectedIDs: Swift.Set<Swift.String>
 var MonitorMediaItem.stateLabel: Swift.String
