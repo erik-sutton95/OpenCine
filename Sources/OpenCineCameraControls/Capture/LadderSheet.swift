@@ -502,6 +502,8 @@ private extension String {
                 content.onLongPressGesture(
                     minimumDuration: minimumDuration, perform: action,
                     onPressingChanged: { pressing?($0) })
+                    // A Mac's right-click runs the hold action.
+                    .monitorSecondaryClick(perform: action)
             } else {
                 content
             }

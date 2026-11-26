@@ -496,6 +496,13 @@
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 13)
+            // A Mac's right-click on the card offers what its "..." button offers.
+            .monitorMacContextMenu {
+                if saved, !busy {
+                    if let rename = actions.rename { Button("Rename") { rename(item) } }
+                    if let remove = actions.remove { Button("Remove", role: .destructive) { remove(item) } }
+                }
+            }
             .background(
                 item.isPrimary
                     ? Color(red: 28 / 255, green: 30 / 255, blue: 31 / 255)

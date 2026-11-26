@@ -173,6 +173,8 @@
                 content.onLongPressGesture(minimumDuration: entryHoldDuration) {
                     if !selecting { onBeginSelection() }
                 }
+                // A Mac's right-click starts selecting, as the long press does.
+                .monitorSecondaryClick(enabled: !selecting) { onBeginSelection() }
             } else {
                 content
             }

@@ -68,6 +68,14 @@ public struct MonitorMovableScopePanel<Content: View>: View {
                             onConfirm()
                             onOpenOptions?(frame)
                         })
+                // A Mac's right-click opens the panel's options, as the long press does.
+                .monitorSecondaryClick(enabled: !interfaceLocked && onOpenOptions != nil && !isDragging) {
+                    let frame = CGRect(
+                        x: center.x - size.width / 2, y: center.y - size.height / 2,
+                        width: size.width, height: size.height)
+                    onConfirm()
+                    onOpenOptions?(frame)
+                }
         }
         .frame(
             width: size.width + gripPad,

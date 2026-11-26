@@ -63,6 +63,8 @@
                             }
                         }
                 )
+                // A Mac's right-click runs the hold action (the capture mode, where offered).
+                .monitorSecondaryClick { perform(policy.holdAction) }
                 .opacity(policy.opacity)
                 .sensoryFeedback(
                     haptics ? .impact(weight: .heavy) : .impact(flexibility: .solid, intensity: 0),

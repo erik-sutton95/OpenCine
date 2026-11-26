@@ -469,6 +469,8 @@
                         }
                     }
             )
+            // A Mac's right-click opens the continuous zoom dial, as the long press does.
+            .monitorSecondaryClick(enabled: !interfaceLocked) { onOpenDial?() }
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { cycle() }
             .accessibilityActions {

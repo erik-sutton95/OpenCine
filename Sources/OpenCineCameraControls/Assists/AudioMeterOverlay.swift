@@ -135,6 +135,8 @@
                 guard hittable, drag.origin == nil else { return }
                 onConfigure()
             }
+            // A Mac's right-click opens the audio options, as the long press does.
+            .monitorSecondaryClick(enabled: hittable && drag.origin == nil) { onConfigure() }
             .position(center)
             .opacity(usable ? 1 : 0)
             .allowsHitTesting(hittable)

@@ -129,6 +129,11 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
                 guard enabled, focusHold.isEditing, let focus, focus.current() else { return }
                 focus.toggleLock()
             })
+            // A Mac's right-click locks or unlocks focus, as the hold does.
+            .monitorSecondaryClick(enabled: enabled) {
+                guard let focus, focus.current() else { return }
+                focus.toggleLock()
+            }
             .onChange(of: holding) { _, pressed in
                 if pressed {
                     guard enabled, focus != nil, focusHold.begin() else { return }
