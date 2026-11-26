@@ -562,7 +562,48 @@
                 unsafeBitCast(window.method(for: behavior), to: SetInteger.self)(
                     window, behavior, (current & ~fullScreenPrimary) | fullScreenNone)
             }
+            keepContentBelowTitleBar(window)
             retargetCloseButton(of: window, to: closeTarget)
+        }
+
+        /// Every page, cover and sheet lays out below the title bar: the window's content no longer
+        /// runs under it (no full-size content view), so nothing the app draws can sit under the
+        /// window buttons, the tabs or the toolbar buttons. The title bar is transparent over the
+        /// window's background, the monitor's theme background, so it reads as one surface.
+        private static func keepContentBelowTitleBar(_ window: NSObject) {
+            let fullSizeContentView = 1 << 15
+            typealias SetInteger = @convention(c) (AnyObject, Selector, Int) -> Void
+            typealias SetFlag = @convention(c) (AnyObject, Selector, Bool) -> Void
+            let mask = NSSelectorFromString("setStyleMask:")
+            let transparent = NSSelectorFromString("setTitlebarAppearsTransparent:")
+            let runsUnder = (window.value(forKey: "styleMask") as? Int).map { $0 & fullSizeContentView != 0 }
+            let opaqueTitleBar = (window.value(forKey: "titlebarAppearsTransparent") as? Bool) == false
+            guard runsUnder == true || opaqueTitleBar else { return }
+            if runsUnder == true, let current = window.value(forKey: "styleMask") as? Int, window.responds(to: mask) {
+                // AppKit keeps the content size when the mask changes, which would grow the window by
+                // the title bar on every launch: the window keeps its frame instead.
+                let before = frame(of: window)
+                unsafeBitCast(window.method(for: mask), to: SetInteger.self)(
+                    window, mask, current & ~fullSizeContentView)
+                if let before { setFrame(before, of: window) }
+            }
+            if window.responds(to: transparent) {
+                unsafeBitCast(window.method(for: transparent), to: SetFlag.self)(window, transparent, true)
+            }
+            if let background = themeBackground, window.responds(to: NSSelectorFromString("setBackgroundColor:")) {
+                window.perform(NSSelectorFromString("setBackgroundColor:"), with: background)
+            }
+        }
+
+        /// The monitor theme's background (MonitorUI `MonitorTheme.background`, 0x111213) as an
+        /// AppKit colour.
+        private static var themeBackground: NSObject? {
+            guard let colorClass = NSClassFromString("NSColor") as? NSObject.Type else { return nil }
+            let selector = NSSelectorFromString("colorWithSRGBRed:green:blue:alpha:")
+            guard colorClass.responds(to: selector) else { return nil }
+            typealias Make = @convention(c) (AnyObject, Selector, CGFloat, CGFloat, CGFloat, CGFloat) -> AnyObject?
+            let make = unsafeBitCast(colorClass.method(for: selector), to: Make.self)
+            return make(colorClass, selector, 0x11 / 255, 0x12 / 255, 0x13 / 255, 1) as? NSObject
         }
 
         private static func retargetCloseButton(of window: NSObject, to closeTarget: DesktopCloseTarget) {
