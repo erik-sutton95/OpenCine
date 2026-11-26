@@ -36,8 +36,6 @@
             recognizer.delegate = self
             return recognizer
         }()
-        /// A Mac's right-click on the catalog (nil on iPhone and iPad).
-        private var secondaryClick: MonitorSecondaryClickRegistration?
         private lazy var pan: UIPanGestureRecognizer = {
             let recognizer = UIPanGestureRecognizer(target: self, action: #selector(handle))
             recognizer.maximumNumberOfTouches = 1
@@ -97,9 +95,6 @@
                     viewportHeight = scroll.bounds.height
                     scroll.addGestureRecognizer(hold)
                     scroll.addGestureRecognizer(pan)
-                    secondaryClick = MonitorSecondaryClick.register(scroll) { [weak self] point in
-                        self?.secondaryClick(at: point)
-                    }
                     // Browsing rejects this pan immediately. Selection gives it
                     // first refusal so scrolling and pull-refresh cannot compete.
                     scroll.panGestureRecognizer.require(toFail: pan)
@@ -113,8 +108,6 @@
             cancel()
             scrollView?.removeGestureRecognizer(hold)
             scrollView?.removeGestureRecognizer(pan)
-            secondaryClick?.cancel()
-            secondaryClick = nil
             scrollView = nil
             mountedProbe = nil
         }
@@ -187,17 +180,6 @@
                 finish()
             default: break
             }
-        }
-
-        /// A Mac's right-click is a hold released where it began: it starts selecting with the
-        /// clicked clip, as the long press does.
-        private func secondaryClick(at point: CGPoint) {
-            guard scrollView != nil, controller.selecting || configuration.allowsSelectionEntry,
-                let id = item(at: point, nearest: false)
-            else { return }
-            controller.down(id: id, x: point.x, y: point.y, timeMilliseconds: 0)
-            publishSelection(controller.holdDue(timeMilliseconds: controller.holdMilliseconds))
-            finish()
         }
 
         private func publishSelection(_ event: MonitorMediaSelectionController.News?) {
