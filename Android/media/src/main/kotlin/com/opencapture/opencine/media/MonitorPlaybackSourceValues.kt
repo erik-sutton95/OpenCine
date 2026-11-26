@@ -35,9 +35,18 @@ public data class MonitorPlaybackSourceValues(
     public val notice: String? = null,
     /** The running cache download's speed ("42 MB/s", "Stalled"); null hides it. */
     public val transferRate: String? = null,
+    /** Why this source cannot bring the clip to the player now (a camera that does not share its
+     * files over the current connection). Read in place of the player's generic failure. */
+    public val unavailableReason: String? = null,
 ) {
     /** The header line under the title: the source's notice while it has one, else the clip facts. */
     public fun headerSubtitle(facts: String): String = notice?.takeIf { it.isNotBlank() } ?: facts
+    /** The failure the player shows: the source's reason while it has one, else the player's own
+     * error. Null while the player has not failed, so a reason never hides a clip that plays. */
+    public fun loadError(error: String?): String? {
+        if (error == null) return null
+        return unavailableReason?.takeIf { it.isNotBlank() } ?: error
+    }
     /** Maps only an actual native temporal observation with known actual native duration. */
     public fun bufferedTemporalFraction(nativeDuration: Double?): Double? {
         val through = bufferedThroughSeconds?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
