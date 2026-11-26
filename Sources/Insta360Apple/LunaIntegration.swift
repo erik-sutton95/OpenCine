@@ -1,4 +1,5 @@
 import Foundation
+import Insta360Protocol
 import OpenCineCore
 import OpenCineMedia
 
@@ -61,6 +62,8 @@ public protocol LunaConnectPort: AnyObject {
     var eventHandler: ((CameraBackendEvent) -> Void)? { get set }
     /// The serial the last connection verified; `nil` when none was read.
     var connectedSerial: String? { get }
+    /// The body the last connection identified; `nil` when none was read.
+    var connectedModel: LunaModel? { get }
     /// The camera network the last connection joined.
     var joinedNetwork: String? { get }
     func startScan() async throws
@@ -110,6 +113,11 @@ extension LunaConnectPort {
     }
 }
 
+extension LunaConnectPort {
+    /// A port that cannot identify the body leaves the saved model as the sighting named it.
+    public var connectedModel: LunaModel? { nil }
+}
+
 extension LunaCameraBackend: LunaConnectPort {
     public var connectedSerial: String? { deviceInformation?.serial }
     public var joinedNetwork: String? { credentials?.ssid }
@@ -122,12 +130,15 @@ extension LunaCameraBackend: LunaConnectPort {
 @MainActor
 public final class LunaIntegration: CameraIntegration {
     public nonisolated var id: IntegrationID { LunaCameraSession.integration }
-    public nonisolated let profiles = [
+    /// One profile per supported body (`LunaModel.supported`), titled with its name; a saved
+    /// camera's model is that title once a connection identified it.
+    public nonisolated let profiles = LunaModel.supported.map { model in
         CameraProfile(
-            id: "\(LunaCameraSession.integration.rawValue).luna-ultra", title: "Luna Ultra",
+            id: "\(LunaCameraSession.integration.rawValue).\(model.name.lowercased().replacingOccurrences(of: " ", with: "-"))",
+            title: model.name,
             routes: [.cameraAccessPoint, .infrastructureNetwork, .phoneHotspot],
             addableRoutes: StationRoutes.moving)
-    ]
+    }
     public nonisolated let discoveryModes: Set<DiscoveryMode> = [.passive]
     public var onEvent: ((CameraBackendEvent) -> Void)?
     /// Why passive discovery is not running (Bluetooth off or not allowed); `nil` while it runs.
@@ -486,7 +497,7 @@ public final class LunaIntegration: CameraIntegration {
         switch event {
         case .discovered(let camera):
             let sighting = NearbyCamera(
-                id: camera.id.uuidString, name: Self.title(advertised: camera.name), model: profiles[0].title,
+                id: camera.id.uuidString, name: Self.title(advertised: camera.name), model: LunaModel.familyName,
                 routes: [.cameraAccessPoint])
             if let index = sightings.firstIndex(where: { $0.id == sighting.id }) {
                 guard sightings[index] != sighting else { break }
@@ -512,12 +523,13 @@ public final class LunaIntegration: CameraIntegration {
         onEvent?(event)
     }
 
-    /// A sighting's name: Luna advertises the last characters of its serial, shown after the model.
+    /// A sighting's name: Luna advertises the last characters of its serial and no model, so the
+    /// serial is shown after the neutral family name ("Luna 1A2B3C").
     public static func title(advertised: String) -> String {
         let trimmed = advertised.trimmingCharacters(in: .whitespaces)
-        if trimmed.isEmpty { return "Luna Ultra" }
+        if trimmed.isEmpty { return LunaModel.familyName }
         if trimmed.lowercased().contains("luna") { return trimmed }
-        return "Luna Ultra \(trimmed)"
+        return "\(LunaModel.familyName) \(trimmed)"
     }
 
     /// What the operator reads for a failed attempt: the backend's copy, except time-outs and
@@ -609,6 +621,8 @@ public final class LunaIntegration: CameraIntegration {
         }
         camera.lastConnected = now()
         if let serial = port.connectedSerial, !serial.isEmpty { camera.device = .durable(serial, integration: id) }
+        // The sighting could not say which body it is; the connection read it.
+        if let model = port.connectedModel { camera.model = model.name }
         // The camera Wi-Fi the Bluetooth read named (on a setup too: it is read before the move).
         let network = port.joinedNetwork
         if let index = camera.routes.firstIndex(where: { $0.kind == .cameraAccessPoint }) {

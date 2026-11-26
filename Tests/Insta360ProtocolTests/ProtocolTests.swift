@@ -366,13 +366,19 @@ final class LunaCommandTests: XCTestCase {
         XCTAssertThrowsError(try LunaProtocol.validateAuthorizationNotification(UCD2Message(code: 200, identifier: 0)))
     }
 
-    func testDeviceInformationRequiresExpectedModelAndCompleteNestedResponse() throws {
+    /// The read names any camera (the gate, `LunaModel.identify`, decides which go on); only an
+    /// empty model is malformed.
+    func testDeviceInformationRequiresAModelAndCompleteNestedResponse() throws {
         let options = try blob(48, Data(LunaProtocol.model.utf8)) + blob(30, Data("test-only".utf8))
         let info = try LunaProtocol.deviceInformation(response: hex("0a02301e") + blob(2, options))
         XCTAssertEqual(info.model, LunaProtocol.model)
         XCTAssertEqual(info.firmware, "test-only")
         XCTAssertNil(info.serial)
-        XCTAssertThrowsError(try LunaProtocol.deviceInformation(response: blob(2, blob(48, Data("other".utf8)) + blob(30, Data("test".utf8)))))
+        let other = try LunaProtocol.deviceInformation(response: blob(2, blob(48, Data("Insta360 ONE RS".utf8)) + blob(30, Data("test".utf8))))
+        XCTAssertEqual(other.model, "Insta360 ONE RS")
+        XCTAssertNil(other.lunaModel)
+        XCTAssertEqual(info.lunaModel, .ultra)
+        XCTAssertThrowsError(try LunaProtocol.deviceInformation(response: blob(2, blob(48, Data()) + blob(30, Data("test".utf8)))))
         XCTAssertEqual(try LunaProtocol.deviceInformation(response: integer(1, 48) + integer(1, 30) + blob(2, options)), info)
         XCTAssertThrowsError(try LunaProtocol.deviceInformation(response: hex("0d00000000") + blob(2, options)))
         XCTAssertThrowsError(try LunaProtocol.deviceInformation(response: blob(2, options) + Data([0x80])))

@@ -28,11 +28,11 @@ struct LunaBluetoothAuthorization {
         phase(.negotiating)
         let info = try LunaProtocol.deviceInformation(
             response: await send(LunaProtocol.deviceInformationRequest(includeSerial: true)))
-        // BE80 is shared by more Insta360 cameras. Only apply the verified Luna profile.
-        guard info.model == LunaProtocol.model else {
+        // BE80 is shared by more Insta360 cameras. Only a supported Luna body goes on.
+        guard info.lunaModel != nil else {
             throw ConnectionFailure.luna(
                 .unsupported, "model.unsupported",
-                "This camera is \(info.model). \(appName) currently supports the Insta360 Luna Ultra.",
+                LunaModel.unsupportedMessage(reported: info.model, appName: appName),
                 phase: .negotiating)
         }
         guard let serial = info.serial, !serial.isEmpty else {

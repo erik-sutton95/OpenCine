@@ -1,5 +1,6 @@
 import Foundation
 import Insta360Apple
+import Insta360Protocol
 import OpenCineCore
 import OpenCineMedia
 
@@ -10,6 +11,8 @@ import OpenCineMedia
 public final class FakeLunaPort: LunaConnectPort {
     public var eventHandler: ((CameraBackendEvent) -> Void)?
     public var connectedSerial: String?
+    /// The body the connection identified, as the backend reads it over Bluetooth.
+    public var connectedModel: LunaModel?
     public var joinedNetwork: String?
     public var makeMediaService: ((CameraSessionID) -> (any CameraMediaService)?)?
     /// Thrown by `startScan()` when set (Bluetooth off, for example).

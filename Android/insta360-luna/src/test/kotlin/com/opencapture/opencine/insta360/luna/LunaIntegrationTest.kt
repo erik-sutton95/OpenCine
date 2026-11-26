@@ -50,6 +50,8 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     override val failureDetail = MutableStateFlow<ConnectionFailure?>(null)
     override val scanBlocked = MutableStateFlow(false)
     override var attempt: Job? = null
+    /** The body the connection identified, as the backend reads it over Bluetooth. */
+    override var connectedModel: LunaModel? = null
     var scans = 0
     var scanStops = 0
     val connects = mutableListOf<String>()
@@ -121,7 +123,8 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LunaIntegrationTest {
     private val camera = "AA:BB:CC:DD:EE:01"
-    private val sighting = NearbyCamera(camera, name = "Luna 1A2B", model = "Insta360 Luna Ultra", routes = setOf(RouteKind.CAMERA_ACCESS_POINT))
+    /** A Luna advertises no model: the backend names every sighting after the family. */
+    private val sighting = NearbyCamera(camera, name = "Luna 1A2B", model = LunaModel.FAMILY_REPORTED_NAME, routes = setOf(RouteKind.CAMERA_ACCESS_POINT))
 
     private fun TestScope.setup(): Pair<FakeLunaPort, LunaIntegration> {
         val port = FakeLunaPort(backgroundScope)
@@ -169,7 +172,7 @@ class LunaIntegrationTest {
         assertTrue(events.filterIsInstance<ConnectionEvent.Progress>().any { it.progress.note == "Looking for the camera" })
         // The camera now advertises: Bluetooth is the route the backend takes.
         port.seen += camera
-        port.found.value = listOf(CameraIdentity(camera, "Luna 1A2B", "Insta360 Luna Ultra"))
+        port.found.value = listOf(CameraIdentity(camera, "Luna 1A2B", LunaModel.FAMILY_REPORTED_NAME))
         advanceTimeBy(LunaIntegration.SIGHTING_STEP_MS)
         runCurrent()
         assertEquals(listOf(camera), port.connects)
@@ -219,7 +222,7 @@ class LunaIntegrationTest {
         assertTrue(luna.discover(DiscoveryMode.ACTIVE).toList().isEmpty())
         val lists = mutableListOf<List<NearbyCamera>>()
         val job = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { luna.discover(DiscoveryMode.PASSIVE).collect { lists += it } }
-        port.found.value = listOf(CameraIdentity(camera, "Luna 1A2B", "Insta360 Luna Ultra"))
+        port.found.value = listOf(CameraIdentity(camera, "Luna 1A2B", LunaModel.FAMILY_REPORTED_NAME))
         runCurrent()
         assertEquals(listOf(emptyList(), listOf(sighting)), lists)
         assertTrue(port.scans == 1 && port.connects.isEmpty(), "listening never connects")
@@ -303,9 +306,31 @@ class LunaIntegrationTest {
     @Test
     fun theLunaOffersWiFiAndHotspotSetups() = runTest {
         val (_, luna) = setup()
-        val profile = luna.profiles.single()
-        assertEquals(setOf(RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT), profile.addableRoutes)
-        assertEquals(setOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT), profile.routes)
+        for (profile in luna.profiles) {
+            assertEquals(setOf(RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT), profile.addableRoutes)
+            assertEquals(setOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT), profile.routes)
+        }
+    }
+
+    /**
+     * Each supported body has its own profile; the saved camera is named after the body the
+     * connection identified, not the sighting's family name. Swift mirror, same name.
+     */
+    @Test
+    fun aConnectedCameraIsSavedAsTheBodyItReported() = runTest {
+        val profiles = setup().second.profiles
+        assertEquals(listOf("Luna Ultra", "Luna Pro"), profiles.map { it.title })
+        assertEquals(listOf("com.opencapture.insta360.luna.luna-ultra", "com.opencapture.insta360.luna.luna-pro"), profiles.map { it.id })
+        for (model in LunaModel.supported + listOf(null)) {
+            val (port, luna) = setup()
+            port.connectedModel = model
+            val events = collect(luna.connect(ConnectTarget.Nearby(sighting)))
+            runCurrent(); port.goLive(); runCurrent()
+            val saved = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+            // A port that cannot identify the body keeps the sighting's family name.
+            assertEquals(model?.reportedName ?: LunaModel.FAMILY_REPORTED_NAME, saved.model)
+            port.disconnect()
+        }
     }
 
     /** Add setup › Wi-Fi: the camera moves onto the network over Bluetooth, the password is kept for
@@ -506,6 +531,7 @@ class LunaIntegrationTest {
         val wifi = remembered.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
         assertTrue(remembered.id == camera && remembered.preferredRoute == wifi.id, "remembered before the camera moves")
         port.joinedSSID.value = "LUNA-1A2B"
+        port.connectedModel = LunaModel.ULTRA
         port.goLive()
         runCurrent()
         val live = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
