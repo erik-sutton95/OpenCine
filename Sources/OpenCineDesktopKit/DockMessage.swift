@@ -78,6 +78,27 @@ public struct DockTab: Codable, Hashable, Sendable {
         self.state = state
         self.bundleID = bundleID
     }
+
+    /// The status dot a tab shows beside its name. Only a state worth a glance has one: an idle
+    /// tab shows its name alone, so the dots never read as list bullets.
+    public enum StatusDot: Equatable, Sendable {
+        /// Green: the camera is live.
+        case live
+        /// Amber: connecting.
+        case connecting
+        /// Red: the module failed or stopped.
+        case problem
+    }
+
+    /// Nil for an idle tab.
+    public var statusDot: StatusDot? {
+        switch state {
+        case .live: .live
+        case .connecting: .connecting
+        case .failed, .stopped: .problem
+        case .idle: nil
+        }
+    }
 }
 
 /// A line at the trailing end of the tab bar, such as the driver needing approval.

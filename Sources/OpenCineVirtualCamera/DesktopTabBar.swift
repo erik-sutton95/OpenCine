@@ -36,8 +36,10 @@
         }
     }
 
-    /// The camera tabs in the module window's title bar, flat: the selected tab on a raised surface.
-    /// Names come from the modules' manifests.
+    /// The camera tabs in the module window's title bar, with no glass around the group (the item is
+    /// unbordered): the selected tab sits on one soft capsule, the others are muted text that takes a
+    /// faint capsule under the pointer. A status dot shows only for a live, connecting, failed or
+    /// stopped module (`DockTab.statusDot`). Names come from the modules' manifests.
     @available(macCatalyst 17.0, *)
     struct DesktopTabBar: View {
         let model: DesktopTabBarModel
@@ -46,50 +48,20 @@
         var body: some View {
             HStack(spacing: 2) {
                 ForEach(model.tabs, id: \.id) { tab in
-                    let selected = model.selectedID == tab.id
-                    Button {
-                        model.onSelect(tab.id)
-                    } label: {
-                        HStack(spacing: 7) {
-                            Circle().fill(Self.color(for: tab.state)).frame(width: 7, height: 7)
-                            Text(tab.displayName)
-                                .font(DesktopToolbarLook.font(commands.fontFamily, 12.5, face: "Medium"))
-                                .lineLimit(1)
-                            if tab.state == .stopped {
-                                Text("Restart")
-                                    .font(DesktopToolbarLook.font(commands.fontFamily, 11.5, face: "Regular"))
-                                    .foregroundStyle(DesktopToolbarLook.faint)
-                            }
-                        }
-                        .foregroundStyle(selected ? DesktopToolbarLook.text : DesktopToolbarLook.muted)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background {
-                            if selected {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(DesktopToolbarLook.raised)
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .strokeBorder(DesktopToolbarLook.border)
-                                    }
-                            }
-                        }
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Self.accessibilityLabel(for: tab))
-                    .accessibilityAddTraits(selected ? .isSelected : [])
+                    DesktopTab(
+                        tab: tab, selected: model.selectedID == tab.id, fontFamily: commands.fontFamily
+                    ) { model.onSelect(tab.id) }
                 }
             }
             .frame(height: DesktopTabToolbar.barHeight)
             .fixedSize()
         }
 
-        static func color(for state: DockTab.State) -> Color {
-            switch state {
+        static func color(for dot: DockTab.StatusDot) -> Color {
+            switch dot {
             case .live: DesktopToolbarLook.live
             case .connecting: DesktopToolbarLook.warning
-            case .failed, .stopped: DesktopToolbarLook.recording
-            case .idle: DesktopToolbarLook.faint
+            case .problem: DesktopToolbarLook.recording
             }
         }
 
@@ -104,44 +76,44 @@
         }
     }
 
-    /// The take in the toolbar: STBY (muted) or REC (the recording colour), then the timecode, then
-    /// a separator before the buttons. It reads the take as the timecode advances.
+    /// One tab: its capsule, the dot when it means something, the name and the restart hint.
     @available(macCatalyst 17.0, *)
-    struct DesktopTakeItem: View {
-        let commands: DesktopCommands
+    private struct DesktopTab: View {
+        let tab: DockTab
+        let selected: Bool
+        let fontFamily: String?
+        let select: () -> Void
+        @State private var hovering = false
 
         var body: some View {
-            Group {
-                if commands.readTake != nil {
-                    TimelineView(.periodic(from: .now, by: 1.0 / 30)) { _ in
-                        let title = commands.take.title
-                        HStack(spacing: 8) {
-                            if let state = title.state {
-                                Text(state)
-                                    .font(DesktopToolbarLook.font(commands.fontFamily, 9.5, face: "Bold"))
-                                    .tracking(1.1)
-                                    .foregroundStyle(
-                                        title.role == .recording
-                                            ? DesktopToolbarLook.recording : DesktopToolbarLook.muted)
-                            }
-                            if let timecode = title.timecode {
-                                Text(timecode)
-                                    .font(DesktopToolbarLook.font(commands.fontFamily, 11.5, face: "SemiBold"))
-                                    .monospacedDigit()
-                                    .foregroundStyle(DesktopToolbarLook.secondary)
-                            }
-                            Rectangle().fill(DesktopToolbarLook.border).frame(width: 1, height: 18)
-                                .padding(.leading, 6)
-                        }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(
-                            title.role == .recording ? "Recording" : title.state == nil ? "Take" : "Standing by")
-                        .accessibilityValue(title.timecode ?? "")
+            Button(action: select) {
+                HStack(spacing: 6) {
+                    if let dot = tab.statusDot {
+                        Circle().fill(DesktopTabBar.color(for: dot)).frame(width: 6, height: 6)
+                    }
+                    Text(tab.displayName)
+                        .font(DesktopToolbarLook.font(fontFamily, DesktopTabToolbar.tabFontSize, face: "Medium"))
+                        .lineLimit(1)
+                    if tab.state == .stopped {
+                        Text("Restart")
+                            .font(DesktopToolbarLook.font(fontFamily, 12, face: "Regular"))
+                            .foregroundStyle(DesktopToolbarLook.faint)
                     }
                 }
+                .foregroundStyle(selected ? DesktopToolbarLook.text : DesktopToolbarLook.muted)
+                .padding(.horizontal, 12)
+                .frame(height: DesktopTabToolbar.tabHeight)
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(Color.white.opacity(selected ? 0.11 : hovering ? 0.05 : 0))
+                }
+                .contentShape(Capsule(style: .continuous))
             }
-            .frame(height: DesktopTabToolbar.barHeight)
-            .fixedSize()
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovering)
+            .accessibilityLabel(DesktopTabBar.accessibilityLabel(for: tab))
+            .accessibilityAddTraits(selected ? .isSelected : [])
         }
     }
 
@@ -170,18 +142,23 @@
     }
 
     /// Puts the toolbar in each window scene's title bar as a unified toolbar: the tabs lead, a
-    /// flexible space follows (empty toolbar space drags the window, as in any Mac window), then the
-    /// take, Media and Settings, and the notice trails. The system lays the items out after the
-    /// window buttons.
+    /// flexible space follows (empty toolbar space drags the window, as in any Mac window), then
+    /// Media and Settings, and the notice trails while there is one. The take (STBY or REC and the timecode) is drawn
+    /// in the picture's top corner by the monitor, as on a phone or tablet. The system lays the
+    /// items out after the window buttons.
     @available(macCatalyst 17.0, *)
     @MainActor
     final class DesktopTabToolbar: NSObject, NSToolbarDelegate {
         /// The items' height: what they measured on screen when the module ran scaled to 77 %, so the
         /// title bar keeps a native unified height now that a point is a Mac point.
         static let barHeight: CGFloat = 34
+        /// A tab's capsule: the height of a standard toolbar control, so it lines up with the window
+        /// buttons and the Media and Settings buttons.
+        static let tabHeight: CGFloat = 28
+        /// Mac body text size.
+        static let tabFontSize: CGFloat = 13
         private static let identifier = "com.opencapture.opencine.tabs"
         private static let tabsItem = NSToolbarItem.Identifier("com.opencapture.opencine.tabs.bar")
-        private static let takeItem = NSToolbarItem.Identifier("com.opencapture.opencine.tabs.take")
         private static let mediaItem = NSToolbarItem.Identifier("com.opencapture.opencine.tabs.media")
         private static let settingsItem = NSToolbarItem.Identifier("com.opencapture.opencine.tabs.settings")
         private static let noticeItem = NSToolbarItem.Identifier("com.opencapture.opencine.tabs.notice")
@@ -210,6 +187,23 @@
             hosts = hosts.filter { live.contains($0.key) }
             for scene in scenes { install(on: scene) }
             refreshButtons()
+            syncNotice()
+        }
+
+        /// The notice takes a place in the title bar only while there is one, so Media and Settings
+        /// otherwise sit at the trailing edge.
+        private func syncNotice() {
+            let shows = model.notice.map { !$0.text.isEmpty } ?? false
+            for toolbar in toolbars.values {
+                let index = toolbar.items.firstIndex { $0.itemIdentifier == Self.noticeItem }
+                if shows, index == nil {
+                    toolbar.insertItem(withItemIdentifier: Self.noticeItem, at: toolbar.items.count)
+                } else if !shows, let index {
+                    let view = (toolbar.items[index] as? NSUIViewToolbarItem)?.uiView
+                    hosts[ObjectIdentifier(toolbar)]?.removeAll { $0.view === view }
+                    toolbar.removeItem(at: index)
+                }
+            }
         }
 
         private func install(on scene: UIWindowScene) {
@@ -248,11 +242,11 @@
         @objc private func openSettings(_ sender: Any?) { commands.openSettings?() }
 
         func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-            [Self.tabsItem, .flexibleSpace, Self.takeItem, Self.mediaItem, Self.settingsItem, Self.noticeItem]
+            [Self.tabsItem, .flexibleSpace, Self.mediaItem, Self.settingsItem]
         }
 
         func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-            toolbarDefaultItemIdentifiers(toolbar)
+            toolbarDefaultItemIdentifiers(toolbar) + [Self.noticeItem]
         }
 
         func toolbar(
@@ -262,7 +256,6 @@
             let view: AnyView
             switch itemIdentifier {
             case Self.tabsItem: view = AnyView(DesktopTabBar(model: model, commands: commands))
-            case Self.takeItem: view = AnyView(DesktopTakeItem(commands: commands))
             case Self.noticeItem: view = AnyView(DesktopTabNotice(model: model))
             case Self.mediaItem, Self.settingsItem:
                 // Real toolbar buttons: the whole item is the click target.
@@ -286,7 +279,10 @@
             host.sizingOptions = .intrinsicContentSize
             host.view.backgroundColor = .clear
             hosts[ObjectIdentifier(toolbar), default: []].append(host)
-            return NSUIViewToolbarItem(itemIdentifier: itemIdentifier, uiView: host.view)
+            let item = NSUIViewToolbarItem(itemIdentifier: itemIdentifier, uiView: host.view)
+            // No glass capsule behind the tabs or the notice: they draw their own surfaces.
+            item.isBordered = false
+            return item
         }
     }
 #endif

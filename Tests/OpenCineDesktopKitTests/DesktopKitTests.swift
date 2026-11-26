@@ -137,6 +137,18 @@ import Testing
         #expect(moduleReceived == module)
     }
 
+    /// Only live, connecting and a failed or stopped module show a dot; an idle tab shows none.
+    @Test func tabDotShowsOnlyMeaningfulStates() {
+        func dot(_ state: DockTab.State) -> DockTab.StatusDot? {
+            DockTab(id: "a", displayName: "A", state: state).statusDot
+        }
+        #expect(dot(.idle) == nil)
+        #expect(dot(.live) == .live)
+        #expect(dot(.connecting) == .connecting)
+        #expect(dot(.failed) == .problem)
+        #expect(dot(.stopped) == .problem)
+    }
+
     @Test func oversizedMessageThrows() {
         var buffer = Data([0xFF, 0xFF, 0xFF, 0xFF, 0x00])
         #expect(throws: LengthPrefixedJSONError.messageTooLarge) {
