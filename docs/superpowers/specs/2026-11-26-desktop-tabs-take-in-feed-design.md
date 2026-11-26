@@ -1,6 +1,6 @@
-# OpenCine desktop: clean tabs, the take in the feed, one set of Media and Settings, right-click
+# OpenCine desktop: clean tabs, the take in the feed, one set of Media and Settings, right-click, nothing under the title bar
 
-Date: 2026-11-26. Four changes the owner approved for the Mac camera window. This builds on
+Date: 2026-11-26. Five changes the owner approved or reported for the Mac camera window. This builds on
 `2026-11-25-desktop-camera-window-toolbar-design.md` and
 `2026-11-25-desktop-mac-sized-ui-and-scroll-dials-design.md`.
 
@@ -91,6 +91,27 @@ Per site:
 | Playback frame scrub | hold, then drag to scrub | not wired: a drag; click-and-hold works |
 
 Nikon Z's iOS sources have no long press of their own.
+
+## 5. Nothing under the title bar
+
+What the owner saw: the clip viewer (opened from Media) drew its top bar under the title bar, with
+the window buttons over the back button and file name, the tabs over the file name and the
+toolbar's Media and Settings over SHARE.
+
+- Cause: the module window's content ran under the title bar (a full-size content view), and a
+  full-screen page laid out for a landscape phone (where the top has no safe area) placed its
+  corner controls at the top edge.
+- Fix, in one place for all three modules (`DesktopModuleHost`): the module window no longer has a
+  full-size content view, so every page, cover and sheet in the window starts below the title bar.
+  The title bar is transparent over the window background, set to the theme background, so it
+  still reads as one surface. The window keeps its frame when the mask changes (AppKit would
+  otherwise grow it by the title bar's height).
+- Covered by construction, since all of them present inside the module's window: the AppShell
+  covers (Settings, Media, Multiview), the cameras and pair pages, the live monitor, the clip and
+  photo viewers presented from Media (Pocket and Luna `MediaLibraryStub`, Nikon Z `MediaBrowser`:
+  clip, photo and series), Nikon Z's link experience and RED download covers, the gyro screens,
+  Multiview's live slot and every sheet (LUT picker and the others).
+- iPhone and iPad are unchanged: the change is in the Mac module host only.
 
 ## How it is checked
 
