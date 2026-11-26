@@ -212,7 +212,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     val presentation = MonitorPlaybackPresentation(value.token, asset.filename,
         facts.headerSubtitle(listOfNotNull(record.facts.resolution, asset.frameRate?.let { number(it) + "p" }, record.facts.format).joinToString(" · ")),
         sourceLabel, metadata, assist?.presentedAspect((width / height).toFloat(), playback = true) ?: (width / height).toFloat(),
-        value.ready, value.error ?: if (value.closed) MediaOperatorCopy.CLIP_NOT_CACHED else null,
+        value.ready, facts.loadError(value.error) ?: if (value.closed) MediaOperatorCopy.CLIP_NOT_CACHED else null,
         facts.progress, position.toFloat(), duration.toFloat(), clock(position), clock(duration),
         value.canPause && !value.scrubbing, value.reachedEnd,
         value.scrubbing, value.muted, value.looping, player.canGoPrevious, player.canGoNext, favorite,

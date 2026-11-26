@@ -42,13 +42,18 @@ public struct MonitorPlaybackSourceValues: Sendable {
     public var notice: String?
     /// The running cache download's speed ("42 MB/s", "Stalled"); nil hides it.
     public var transferRate: String?
+    /// Why this source cannot bring the clip to the player now (a camera that does not share its
+    /// files over the current connection). Read in place of the player's generic failure.
+    public var unavailableReason: String?
     public init(availability: MonitorPlaybackAvailability? = nil, progress: Double? = nil,
         buffered: Double? = nil, colorLabel: String? = nil, transfer: MonitorTransfer? = nil,
         clipByte: Int? = nil, metadata: [MonitorPlaybackMetadataValue] = [],
         clockStyle: MonitorPlaybackClockStyle = .elapsed, bufferedThroughSeconds: Double? = nil,
-        allowsSignalFallback: Bool = true, notice: String? = nil, transferRate: String? = nil) {
+        allowsSignalFallback: Bool = true, notice: String? = nil, transferRate: String? = nil,
+        unavailableReason: String? = nil) {
         self.notice = notice
         self.transferRate = transferRate
+        self.unavailableReason = unavailableReason
         self.availability = availability; self.progress = progress; self.buffered = buffered
         self.colorLabel = colorLabel; self.transfer = transfer; self.clipByte = clipByte
         self.metadata = metadata
@@ -60,6 +65,15 @@ public struct MonitorPlaybackSourceValues: Sendable {
     public func headerSubtitle(facts: String) -> String {
         if let notice, !notice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return notice }
         return facts
+    }
+    /// The failure the player shows: the source's reason while it has one, else the player's own
+    /// error. Nil while the player has not failed, so a reason never hides a clip that plays.
+    public func loadError(player error: String?) -> String? {
+        guard let error else { return nil }
+        if let unavailableReason, !unavailableReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return unavailableReason
+        }
+        return error
     }
     /// Maps a native temporal observation only when its actual native duration is known.
     public func bufferedTemporalFraction(nativeDuration: Double?) -> Double? {
