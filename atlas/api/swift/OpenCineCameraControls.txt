@@ -2194,6 +2194,7 @@ var MonitorLiveScreenSession.isTracking: Swift.Bool
 var MonitorLiveScreenSession.isVerticalPicture: Swift.Bool
 var MonitorLiveScreenSession.liveLevelReading: OpenCineMotion.LevelReading
 var MonitorLiveScreenSession.nativeQualificationSnapshot: OpenCineApple.MonitorNativeQualificationSnapshot
+var MonitorLiveScreenSession.opticalZoomStops: [Swift.Double]
 var MonitorLiveScreenSession.pictureAspect: CoreGraphics.CGFloat
 var MonitorLiveScreenSession.searchBox: OpenCineCameraVocabulary.TrackingBox?
 var MonitorLiveScreenSession.sessionRecovery: OpenCineCameraVocabulary.SessionRecoveryState

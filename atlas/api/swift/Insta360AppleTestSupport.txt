@@ -67,6 +67,7 @@ var FakeLuna.silent: Swift.Bool
 var FakeLuna.zoom: Swift.Double
 var FakeLunaPort.accessPointReturns: [Insta360Apple.LunaAccessPointReturn]
 var FakeLunaPort.connectSawSighting: Swift.Bool?
+var FakeLunaPort.connectedModel: Insta360Protocol.LunaModel?
 var FakeLunaPort.connectedSerial: Swift.String?
 var FakeLunaPort.connects: [Insta360Apple.MonitorCamera]
 var FakeLunaPort.disconnects: Swift.Int

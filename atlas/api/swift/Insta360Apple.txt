@@ -371,6 +371,7 @@ var CameraInformation.sourceLabel: Swift.String?
 var LunaAccessPointReturn.failure: OpenCineCore.ConnectionFailure?
 var LunaAccessPointReturn.isRetryable: Swift.Bool
 var LunaCameraBackend.cameraHost: Swift.String
+var LunaCameraBackend.connectedModel: Insta360Protocol.LunaModel?
 var LunaCameraBackend.connectedSerial: Swift.String?
 var LunaCameraBackend.credentials: LunaStoredWiFi?
 var LunaCameraBackend.deviceInformation: Insta360Protocol.LunaDeviceInformation?
@@ -401,6 +402,7 @@ var LunaCameraSession.current: OpenCineCore.CameraSnapshot
 var LunaCameraSession.recordingProfile: OpenCineCore.ObservedValue<Swift.String>
 var LunaCommandAdmission.isCurrent: Swift.Bool
 var LunaCommandOwner.source: Foundation.UUID
+var LunaConnectPort.connectedModel: Insta360Protocol.LunaModel?
 var LunaConnectPort.connectedSerial: Swift.String?
 var LunaConnectPort.eventHandler: ((CameraBackendEvent) -> Swift.Void)?
 var LunaConnectPort.joinedNetwork: Swift.String?
