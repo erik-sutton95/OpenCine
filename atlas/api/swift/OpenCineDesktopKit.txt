@@ -22,6 +22,9 @@ case DockTab.State.failed
 case DockTab.State.idle
 case DockTab.State.live
 case DockTab.State.stopped
+case DockTab.StatusDot.connecting
+case DockTab.StatusDot.live
+case DockTab.StatusDot.problem
 case LengthPrefixedJSONError.messageTooLarge
 case ModuleMessage.closeRequested
 case ModuleMessage.ready(Swift.String)
@@ -41,6 +44,7 @@ enum DesktopTake.Role: Equatable, Hashable, Sendable
 enum DesktopTake: Equatable, Sendable
 enum DockMessage: Decodable, Encodable, Equatable, Hashable, Sendable
 enum DockTab.State: Decodable, Encodable, Equatable, Hashable, Sendable
+enum DockTab.StatusDot: Equatable, Hashable, Sendable
 enum LengthPrefixedJSON
 enum LengthPrefixedJSONError: Equatable, Error, Hashable, Sendable
 enum ModuleMessage: Decodable, Encodable, Equatable, Sendable
@@ -143,6 +147,7 @@ var DockTab.bundleID: Swift.String?
 var DockTab.displayName: Swift.String
 var DockTab.id: Swift.String
 var DockTab.state: DockTab.State
+var DockTab.statusDot: DockTab.StatusDot?
 var DockWindowCoordinator.Command.message: DockMessage
 var DockWindowCoordinator.Command.moduleID: Swift.String
 var DockWindowCoordinator.frame: WindowFrame

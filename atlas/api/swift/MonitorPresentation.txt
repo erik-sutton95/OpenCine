@@ -8,6 +8,10 @@ case CameraPairingCheck.State.complete
 case CameraPairingCheck.State.waiting
 case CameraPairingInstruction.Icon.camera
 case CameraPairingInstruction.Icon.phone
+case CamerasPageHeaderButton.media
+case CamerasPageHeaderButton.multiview
+case CamerasPageHeaderButton.settings
+case CamerasPageHeaderButton.watchFeed
 case LiveStreamCameraStatus.live
 case LiveStreamCameraStatus.lost
 case LiveStreamCameraStatus.notResponding
@@ -281,6 +285,7 @@ case StartupLayoutProfile.wideLandscape
 enum CameraConnectStep.State: Equatable, Hashable, Sendable
 enum CameraPairingCheck.State: Equatable, Hashable, Sendable
 enum CameraPairingInstruction.Icon: Equatable, Hashable, Sendable
+enum CamerasPageHeaderButton: Equatable, Hashable, Sendable
 enum LiveStreamCameraStatus: CaseIterable, Equatable, Hashable, Sendable
 enum LiveStreamControlState.Tap: Equatable, Hashable, Sendable
 enum LiveStreamControlState.Tone: Equatable, Hashable, Sendable
@@ -675,6 +680,7 @@ let FieldMonitorLayout.status: MonitorRect
 let FieldMonitorLayout.stick: MonitorRect
 let FieldMonitorLayout.system: MonitorRect
 let FieldMonitorLayout.tablet: Swift.Bool
+let FieldMonitorLayout.take: MonitorRect
 let FieldMonitorLayout.telemetry: MonitorRect
 let FieldMonitorLayout.values: MonitorRect
 let FieldMonitorLayout.viewport: MonitorRect
@@ -964,6 +970,7 @@ let StartupContentLayout.showSecondaryVisuals: Swift.Bool
 let StartupSideCutoutAvoidance.leading: Swift.Double
 let StartupSideCutoutAvoidance.trailing: Swift.Double
 protocol MonitorScopePanelOptions<Self : Swift.Decodable, Self : Swift.Encodable, Self : Swift.Equatable, Self : Swift.Sendable>: Decodable, Encodable, Equatable, Sendable
+static func CamerasPageHeaderButton.buttons(chrome: MonitorChromeStyle, multiview: Swift.Bool, watchFeed: Swift.Bool) -> [CamerasPageHeaderButton]
 static func FieldMonitorLayout.aeUnlock(focusReset: MonitorRect, leadingColumnMaxX: Swift.Double, pictureMidX: Swift.Double, portrait: Swift.Bool) -> MonitorRect
 static func FieldMonitorLayout.appBadge(status: MonitorRect, reserved: [MonitorRect]) -> MonitorRect
 static func FieldMonitorLayout.headTrack(stick: MonitorRect, zoom: MonitorRect) -> MonitorRect
@@ -1087,6 +1094,7 @@ static func MonitorStatusCorner.holdsSetup(photo: Swift.Bool, portrait: Swift.Bo
 static func MonitorStatusCorner.split(_: [Value], holdsSetup: Swift.Bool, group: (Value) -> MonitorCaptureReadoutGroup)<Value> -> (strip: [Value], corner: [Value])
 static func MonitorStatusCorner.width(of: [Swift.Double], spacing: Swift.Double) -> Swift.Double
 static func MonitorStatusCorner.widths(natural: [Swift.Double], floors: [Swift.Double], available: Swift.Double, spacing: Swift.Double) -> [Swift.Double]
+static func MonitorStatusPresentation.reportedClock(_: Swift.String?) -> Swift.String?
 static func MonitorStorageReadoutFormat.alternatives(percent: Swift.String?, recordingTime: Swift.String?, photo: Swift.Bool) -> [Swift.String]
 static func MonitorStorageReadoutFormat.capacity(gigabytes: Swift.Int64?) -> Swift.String
 static func MonitorStorageReadoutFormat.nextForm(after: Swift.Int, count: Swift.Int) -> Swift.Int
@@ -1126,6 +1134,8 @@ static let FieldMonitorLayout.desktopStatusRowHeight: Swift.Double
 static let FieldMonitorLayout.minimumTapTarget: Swift.Double
 static let FieldMonitorLayout.settingsMediaGap: Swift.Double
 static let FieldMonitorLayout.stickSide: Swift.Double
+static let FieldMonitorLayout.takeBandHeight: Swift.Double
+static let FieldMonitorLayout.takeTrailingInset: Swift.Double
 static let FieldMonitorLayout.valueRowPitch: Swift.Double
 static let GimbalCluster.gap: Swift.Double
 static let GimbalCluster.inset: Swift.Double
@@ -1594,6 +1604,7 @@ var CameraSetupChip.kind: Swift.String?
 var CameraSetupChip.title: Swift.String
 var FieldMonitorLayout.aeUnlock: MonitorRect
 var FieldMonitorLayout.appBadge: MonitorRect
+var FieldMonitorLayout.liveStreamDeck: MonitorRect
 var FieldMonitorLayout.recordingReadoutTrailingInset: Swift.Double
 var GimbalCluster.bounds: MonitorLayoutRegion
 var GimbalCluster.controls: MonitorLayoutRegion

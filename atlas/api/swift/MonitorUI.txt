@@ -136,6 +136,7 @@ class InterfaceOrientationObserver: Observable, Sendable
 class MonitorBackdropSource: Observable
 class MonitorPortraitPrimarySizer: Sendable
 class MonitorScopeTraceRenderer: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class MonitorSecondaryClickRegistration: Sendable
 class MonitorVectorscopeMetalRenderer: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class MultiviewStageController: UIKit.UIViewController, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MultiviewStageGeometry: Sendable
@@ -164,6 +165,7 @@ enum MonitorScopePanelPlacement
 enum MonitorScopePanelSize
 enum MonitorScopeTraceMetal
 enum MonitorScopeTraceMetal.Mode: Equatable, Sendable
+enum MonitorSecondaryClick
 enum MonitorSegmentedAppearance: Equatable, Hashable, Sendable
 enum MonitorSettingsSourceProperty.Value
 enum MonitorTheme
@@ -215,6 +217,7 @@ func MonitorScopeTraceMetalView.makeUIView(context: MonitorScopeTraceMetalView.C
 func MonitorScopeTraceMetalView.updateUIView(_: MetalKit.MTKView, context: MonitorScopeTraceMetalView.Context) -> ()
 func MonitorScopeTraceRenderer.draw(in: MetalKit.MTKView) -> ()
 func MonitorScopeTraceRenderer.mtkView(_: MetalKit.MTKView, drawableSizeWillChange: CoreFoundation.CGSize) -> ()
+func MonitorSecondaryClickRegistration.cancel() -> ()
 func MonitorSettingsButtonStyle.makeBody(configuration: MonitorSettingsButtonStyle.Configuration) -> some SwiftUI.View
 func MonitorStatusCornerLayout.placeSubviews(in: CoreFoundation.CGRect, proposal: SwiftUI.ProposedViewSize, subviews: MonitorStatusCornerLayout.Subviews, cache: ()) -> ()
 func MonitorStatusCornerLayout.sizeThatFits(proposal: SwiftUI.ProposedViewSize, subviews: MonitorStatusCornerLayout.Subviews, cache: ()) -> CoreFoundation.CGSize
@@ -249,12 +252,14 @@ func View.monitorDesktopCommands(_: MonitorDesktopCommandSink?) -> some SwiftUI.
 func View.monitorFullWidthCard() -> some SwiftUI.View
 func View.monitorGlass(in: some SwiftUI.Shape, density: MonitorGlassDensity) -> some SwiftUI.View
 func View.monitorHiddenWhileZoom(_: Swift.Bool) -> some SwiftUI.View
+func View.monitorMacContextMenu(_: () -> Items)<Self, Items where Self : SwiftUI.View, Items : SwiftUI.View> -> some SwiftUI.View
 func View.monitorMenuStyle() -> some SwiftUI.View
 func View.monitorPointerWheel(onHover: (CoreFoundation.CGPoint?) -> Swift.Void, onScroll: (MonitorPointerScroll) -> Swift.Void) -> some SwiftUI.View
 func View.monitorPresentationVisibility(_: Swift.Bool) -> some SwiftUI.View
 func View.monitorPulse(period: Foundation.TimeInterval) -> some SwiftUI.View
 func View.monitorReadoutShadow() -> some SwiftUI.View
 func View.monitorScrollFade(_: SwiftUI.Axis, depth: CoreGraphics.CGFloat) -> some SwiftUI.View
+func View.monitorSecondaryClick(enabled: Swift.Bool, perform: () -> Swift.Void) -> some SwiftUI.View
 func View.monitorTabSurface(selected: Swift.Bool, separator: Swift.Bool) -> some SwiftUI.View
 func View.observeMonitorWindowGeometry() -> some SwiftUI.View
 init CameraPageButtonStyle(primary: Swift.Bool, destructive: Swift.Bool)
@@ -471,6 +476,7 @@ init MonitorSupportSettings(automaticReports: SwiftUI.Binding<Swift.Bool>?, avai
 init MonitorSystemControls(layout: MonitorPresentation.FieldMonitorLayout, visibility: MonitorPresentation.MonitorSystemControlsVisibility, capturePresented: Swift.Bool, visible: Swift.Bool, interactive: Swift.Bool, navigationHidden: Swift.Bool?, lock: () -> Lock, settings: () -> Settings, media: () -> Media, record: () -> Record, display: () -> Display)<Lock, Settings, Media, Record, Display where Lock : SwiftUI.View, Settings : SwiftUI.View, Media : SwiftUI.View, Record : SwiftUI.View, Display : SwiftUI.View>
 init MonitorTabButtonStyle()
 init MonitorTabStrip(vertical: Swift.Bool, spacing: CoreGraphics.CGFloat, minLength: CoreGraphics.CGFloat, content: () -> Content)<Content where Content : SwiftUI.View>
+init MonitorTakeReadout(layout: MonitorPresentation.FieldMonitorLayout, status: MonitorPresentation.MonitorStatusPresentation, showsRecording: Swift.Bool, showsTimecode: Swift.Bool, clock: (() -> Swift.String?)?, omitsUnknown: Swift.Bool)
 init MonitorTapTargetButtonStyle(minSize: CoreGraphics.CGFloat)
 init MonitorTelemetryPill(width: CoreGraphics.CGFloat, height: CoreGraphics.CGFloat, content: () -> Content)<Content where Content : SwiftUI.View>
 init MonitorTelemetryPowerLayout()
@@ -703,6 +709,7 @@ static func MonitorScopePanelPlacement.size(_: CoreFoundation.CGSize, canvas: Co
 static func MonitorScopeTraceMetal.fillVertices(_: Swift.UnsafeMutableBufferPointer<MonitorScopeTraceMetal.Vertex>, from: Swift.Int, points: [OpenCineMedia.ScopePoint], mode: MonitorScopeTraceMetal.Mode, rect: CoreFoundation.CGRect, opacity: Swift.Double, levelTable: [Swift.Float]) -> Swift.Int
 static func MonitorScopeTraceMetal.maxVertexCount(points: Swift.Int, mode: MonitorScopeTraceMetal.Mode) -> Swift.Int
 static func MonitorScopeTraceMetal.scissor(clip: CoreFoundation.CGRect, bounds: CoreFoundation.CGSize, drawable: CoreFoundation.CGSize) -> Metal.MTLScissorRect?
+static func MonitorSecondaryClick.register(_: UIKit.UIView, enabled: () -> Swift.Bool, action: (CoreFoundation.CGPoint) -> Swift.Void) -> MonitorSecondaryClickRegistration?
 static func MonitorTheme.color(_: Swift.UInt32) -> SwiftUI.Color
 static func MonitorTheme.edrAccent(gain: CoreGraphics.CGFloat) -> SwiftUI.Color
 static func MonitorTheme.edrFaint(gain: CoreGraphics.CGFloat) -> SwiftUI.Color
@@ -929,6 +936,7 @@ static var MonitorHistogramGeometry.trafficGutter: CoreGraphics.CGFloat
 static var MonitorHistogramGeometry.trafficHorizontalInset: CoreGraphics.CGFloat
 static var MonitorPlatformLegalNotices.document: MonitorPresentation.MonitorLegalDocument
 static var MonitorPlatformLegalNotices.text: Swift.String?
+static var MonitorSecondaryClick.standsInForLongPress: Swift.Bool
 static var MonitorTheme.accent: SwiftUI.Color
 static var MonitorTheme.accentIsLight: Swift.Bool
 static var MonitorTheme.accentRGB: Swift.UInt32
@@ -1142,6 +1150,7 @@ struct MonitorSupportSettings: Sendable, View
 struct MonitorSystemControls<Lock, Settings, Media, Record, Display where Lock : SwiftUI.View, Settings : SwiftUI.View, Media : SwiftUI.View, Record : SwiftUI.View, Display : SwiftUI.View>: Sendable, View
 struct MonitorTabButtonStyle: ButtonStyle, Sendable
 struct MonitorTabStrip<Content where Content : SwiftUI.View>: Sendable, View
+struct MonitorTakeReadout: Sendable, View
 struct MonitorTapTargetButtonStyle: ButtonStyle, Sendable
 struct MonitorTelemetryPill<Content where Content : SwiftUI.View>: Sendable, View
 struct MonitorTelemetryPowerLayout: Animatable, Layout, Sendable
@@ -1240,6 +1249,7 @@ var LiveMonitorLayout.focusReset: CoreFoundation.CGRect
 var LiveMonitorLayout.gimbalCalibrate: CoreFoundation.CGRect
 var LiveMonitorLayout.gimbalStick: CoreFoundation.CGRect
 var LiveMonitorLayout.isWidthConstrained: Swift.Bool
+var LiveMonitorLayout.liveStreamDeck: CoreFoundation.CGRect
 var LiveMonitorLayout.lock: CoreFoundation.CGRect
 var LiveMonitorLayout.media: CoreFoundation.CGRect
 var LiveMonitorLayout.onFeed: CoreFoundation.CGRect
@@ -1555,6 +1565,7 @@ var MonitorStatusCornerLayout.spacing: CoreGraphics.CGFloat
 var MonitorSupportSettings.body: some SwiftUI.View
 var MonitorSystemControls.body: some SwiftUI.View
 var MonitorTabStrip.body: some SwiftUI.View
+var MonitorTakeReadout.body: some SwiftUI.View
 var MonitorTapTargetButtonStyle.minSize: CoreGraphics.CGFloat
 var MonitorTelemetryPill.body: some SwiftUI.View
 var MonitorToolInspector.body: some SwiftUI.View
