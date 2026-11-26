@@ -126,6 +126,29 @@ struct FieldMonitorDesktopChromeTests {
         #expect(MonitorStatusPresentation.reportedClock(MonitorTimecodeFormat.placeholder(frames: true)) == nil)
     }
 
+    /// The owner's window (1265 x 961 points of content, measured from the module on 2026-11-26),
+    /// with the title bar inside the content (before 653f3e1e4) and above it (since): a 16:9
+    /// picture is centred between the status row and the window's bottom edge, and the camera
+    /// values sit in the bottom bar under the picture, as on an iPad in landscape. A wider window
+    /// fills the height and splits the side bars evenly.
+    @Test func desktopSpareSpaceSplitsEvenlyAroundThePicture() {
+        for titleBar in Self.titleBars {
+            let tall = Self.desktop(1265, 961 + titleBar, titleBar: titleBar)
+            let above = tall.picture.y - tall.status.maxY
+            let below = tall.viewport.height - tall.picture.maxY
+            #expect(above > 1 && abs(above - below) < 1, "title \(titleBar): \(above) above, \(below) below")
+            #expect(abs(tall.picture.width - 1265) < 1e-9 && abs(tall.picture.height - 1265 * 9 / 16) < 1e-9)
+            // The camera values sit in the bottom bar, clear of the picture.
+            #expect(tall.values.y >= tall.picture.maxY, "title \(titleBar)")
+
+            let wide = Self.desktop(1800, 700 + titleBar, titleBar: titleBar)
+            let left = wide.picture.x
+            let right = wide.viewport.width - wide.picture.maxX
+            #expect(left > 1 && abs(left - right) < 1, "title \(titleBar): \(left) left, \(right) right")
+            #expect(abs(wide.picture.y - wide.status.maxY) < 1e-9 && abs(wide.picture.maxY - wide.viewport.height) < 1e-9)
+        }
+    }
+
     @Test func desktopPopupsStayInsideThePictureArea() {
         for (width, height) in Self.windows {
             for titleBar in Self.titleBars {
