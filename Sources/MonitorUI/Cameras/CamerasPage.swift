@@ -210,6 +210,7 @@
                     } primaryAction: {
                         if !busy { onMultiview() }
                     }
+                    .monitorMenuStyle()
                     .disabled(busy).accessibilityLabel("Open Multiview")
                     .accessibilityHint("Touch and hold for Watch a feed")
                     .accessibilityIdentifier("cameras.multiview")
@@ -449,7 +450,7 @@
                             CameraPageGlyph(icon: .more).frame(
                                 width: 15, height: 15
                             ).frame(width: 36, height: 44)
-                        }.disabled(busy).accessibilityLabel("Options for \(item.name)")
+                        }.monitorMenuStyle().disabled(busy).accessibilityLabel("Options for \(item.name)")
                     }
                     if let failure = item.failure, !item.isBusy, let act = actions.failureAction {
                         ForEach(failure.actions) { action in

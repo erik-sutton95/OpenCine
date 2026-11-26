@@ -113,6 +113,7 @@ public struct LiveStreamSettingsCard: View {
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(MonitorTheme.accent.opacity(0.16), in: Capsule())
             }
+            .monitorMenuStyle()
             .disabled(state.isLocked)
             .accessibilityLabel(LiveStreamCopy.serviceTitle)
             .accessibilityValue(state.selected?.name ?? "")
@@ -137,6 +138,7 @@ public struct LiveStreamSettingsCard: View {
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(MonitorTheme.accent.opacity(0.16), in: Capsule())
             }
+            .monitorMenuStyle()
             .disabled(state.isLocked)
             .accessibilityLabel(LiveStreamCopy.qualityTitle)
             .accessibilityValue(state.selectedQuality?.title ?? "")

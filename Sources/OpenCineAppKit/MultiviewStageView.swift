@@ -281,6 +281,7 @@
                 } label: {
                     label
                 }
+                .monitorMenuStyle()
                 .accessibilityLabel(value.title + " " + value.value)
                 .accessibilityIdentifier("multiview.value.\(value.title.lowercased())")
             }
@@ -813,6 +814,7 @@
                 } label: {
                     label
                 }
+                .monitorMenuStyle()
                 .accessibilityLabel(readout.title + " " + readout.value)
                 .accessibilityIdentifier("multiview.value.\(readout.title.lowercased())")
             }

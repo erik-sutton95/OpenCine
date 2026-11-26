@@ -243,7 +243,7 @@
                                 MonitorIcon.chevronsUpDown.frame(width: 11, height: 11)
                                     .foregroundStyle(MonitorTheme.muted)
                             }.padding(.horizontal, 12).padding(.vertical, 10).deliveryOptionPlate()
-                        }.buttonStyle(MonitorSettingsButtonStyle())
+                        }.buttonStyle(MonitorSettingsButtonStyle()).monitorMenuStyle()
                         if allowsCreation {
                             Button {
                                 action(.createProject)
