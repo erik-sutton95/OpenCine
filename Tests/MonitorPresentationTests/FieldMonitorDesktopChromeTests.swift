@@ -76,6 +76,56 @@ struct FieldMonitorDesktopChromeTests {
         #expect(abs(wide.x - 880.0 / 3.0) < 1e-6)
     }
 
+    /// The take (STBY or REC and the timecode) sits across the picture's top edge, as a phone in
+    /// landscape shows it, not in the toolbar; the live stream control hangs under it and floating
+    /// scopes keep clear of it (spec 2026-11-26-desktop-tabs-take-in-feed-design.md).
+    @Test func desktopTakeSitsAtThePicturesTopTrailingCorner() {
+        for (width, height) in Self.windows {
+            for titleBar in Self.titleBars {
+                for aspect in [16.0 / 9.0, 1.5, 2.39] {
+                    let layout = FieldMonitorLayout(
+                        width: width, height: height, safeArea: .init(top: titleBar), sourceAspect: aspect,
+                        chrome: .desktop)
+                    let label = "\(width)x\(height) title \(titleBar) aspect \(aspect)"
+                    let take = layout.take
+                    #expect(take.y == layout.picture.y && take.x == layout.picture.x, "\(label)")
+                    #expect(take.maxX == layout.picture.maxX, "\(label)")
+                    #expect(take.height == min(FieldMonitorLayout.takeBandHeight, layout.picture.height), "\(label)")
+                    // Below the status row and the title bar, never over them.
+                    #expect(take.y >= layout.status.maxY - 1e-9, "\(label)")
+                    #expect(layout.liveStreamDeck == take, "\(label)")
+                    let anchor = LiveStreamOverlayPlacement.anchor(
+                        status: layout.liveStreamDeck, viewportWidth: width, safeTop: titleBar, safeTrailing: 0)
+                    #expect(anchor.y > take.maxY && anchor.x <= take.maxX, "\(label)")
+                    #expect(layout.scopeObstacles([.status]).contains(take), "\(label)")
+                }
+            }
+        }
+    }
+
+    /// A device has no take band: its status row carries the take, and the live stream control
+    /// still hangs under the status row.
+    @Test func deviceHasNoTakeBand() {
+        let phone = FieldMonitorLayout(width: 932, height: 430, safeArea: .init(leading: 59, bottom: 21, trailing: 59))
+        let portrait = FieldMonitorLayout(width: 393, height: 852, safeArea: .init(top: 59, bottom: 34))
+        let tablet = FieldMonitorLayout(width: 1180, height: 820, safeArea: .init(top: 24, bottom: 20))
+        for layout in [phone, portrait, tablet] {
+            #expect(layout.take == MonitorRect())
+            #expect(layout.liveStreamDeck == layout.status)
+            #expect(layout.scopeObstacles([.status]) == [layout.status])
+        }
+    }
+
+    /// The take prints a reported timecode, and nothing (not a dash) when there is none.
+    @Test func desktopTakeLeavesOutAMissingTimecode() {
+        #expect(MonitorStatusPresentation.reportedClock("01:02:03:04") == "01:02:03:04")
+        #expect(MonitorStatusPresentation.reportedClock(" 12:00:00 ") == "12:00:00")
+        #expect(MonitorStatusPresentation.reportedClock(nil) == nil)
+        #expect(MonitorStatusPresentation.reportedClock("") == nil)
+        #expect(MonitorStatusPresentation.reportedClock("--:--:--") == nil)
+        #expect(MonitorStatusPresentation.reportedClock(MonitorTimecodeFormat.placeholder(frames: true)) == nil)
+    }
+
     @Test func desktopPopupsStayInsideThePictureArea() {
         for (width, height) in Self.windows {
             for titleBar in Self.titleBars {

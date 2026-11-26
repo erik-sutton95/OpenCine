@@ -233,8 +233,8 @@
             .overlay(alignment: .topLeading) {
                 if let stream = model.liveStream {
                     let anchor = LiveStreamOverlayPlacement.anchor(
-                        status: MonitorRect(x: layout.topDeck.minX, y: layout.topDeck.minY,
-                            width: layout.topDeck.width, height: layout.topDeck.height),
+                        status: MonitorRect(x: layout.liveStreamDeck.minX, y: layout.liveStreamDeck.minY,
+                            width: layout.liveStreamDeck.width, height: layout.liveStreamDeck.height),
                         viewportWidth: layout.viewport.width, safeTop: layout.safeArea.top,
                         safeTrailing: layout.safeArea.trailing)
                     LiveStreamMonitorOverlay(coordinator: stream, hidden: interaction.zoomVisible)

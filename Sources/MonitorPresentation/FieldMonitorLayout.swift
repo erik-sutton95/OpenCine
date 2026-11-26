@@ -87,6 +87,10 @@ public enum MonitorChromeStyle: Equatable, Sendable {
 public struct FieldMonitorLayout: Equatable, Sendable {
     /// The desktop status row's height, under the title bar (`MonitorChromeStyle.desktop`).
     public static let desktopStatusRowHeight = 30.0
+    /// The desktop take band's height (`take`): a phone's landscape status row.
+    public static let takeBandHeight = 44.0
+    /// Space between the take and the picture's trailing edge, as on a phone in landscape.
+    public static let takeTrailingInset = 12.0
     /// Space between the Settings and Media system buttons.
     public static let settingsMediaGap = 12.0
     /// Default on-feed gimbal joystick diameter.
@@ -120,11 +124,18 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public let viewport: MonitorRect
     public let picture: MonitorRect
     public let status: MonitorRect
+    /// Desktop only (empty on a device, where the status row carries it): the band across the
+    /// picture's top edge whose trailing end holds the take, STBY or REC and the timecode, where a
+    /// phone or tablet in landscape shows them. It is as tall as a phone's status row.
+    public let take: MonitorRect
     /// Keep the landscape tally and clock inside the picture without moving
     /// them off the format row's vertical center or shrinking its touch targets.
     public var recordingReadoutTrailingInset: Double {
         portrait ? 0 : max(8, status.maxX - picture.maxX + 12)
     }
+    /// The rect the live stream control hangs under (`LiveStreamOverlayPlacement`): the status row
+    /// on a device, the take band in a desktop window, so the control never covers the take.
+    public var liveStreamDeck: MonitorRect { chrome == .desktop ? take : status }
     public let values: MonitorRect
     public let system: MonitorRect
     public let lock: MonitorRect
@@ -355,6 +366,10 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             headTrack = Self.headTrack(stick: stick, zoom: zoom)
             aspectToggle = .init()
         }
+        take =
+            desktop
+            ? .init(x: picture.x, y: picture.y, width: picture.width, height: min(Self.takeBandHeight, picture.height))
+            : .init()
         focusReset = .init(
             x: portrait ? max(safeArea.leading + 8, assists.x) : max(safeArea.leading + 8, stick.x - 50),
             y: portrait ? assists.y - 48 : stick.maxY - 40, width: 40, height: 40)
@@ -399,7 +414,7 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     /// Pro 11-inch). Mirrors Kotlin `MonitorFieldLayout.scopeObstacles`.
     public func scopeObstacles(_ shown: MonitorScopeChrome, motionCluster: Bool = false) -> [MonitorRect] {
         let parts: [(MonitorScopeChrome, [MonitorRect])] = [
-            (.status, [status]), (.telemetry, [telemetry]), (.lock, [lock]),
+            (.status, [status, take]), (.telemetry, [telemetry]), (.lock, [lock]),
             (.settings, [settings]), (.media, [media]), (.record, [record]),
             (.display, [display]), (.values, [values]), (.tools, [assists]),
             (.motion, motionCluster ? [stick, zoom, gimbal, headTrack] : []),

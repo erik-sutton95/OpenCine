@@ -441,6 +441,12 @@
         }
     }
 
+    extension LiveMonitorLayout {
+        /// The rect the live stream control hangs under: the status row on a device, the take band
+        /// across the picture's top in a desktop window (`FieldMonitorLayout.liveStreamDeck`).
+        public var liveStreamDeck: CGRect { presentation?.liveStreamDeck.cgRect ?? topDeck }
+    }
+
     extension MonitorRect {
         public var cgRect: CGRect { CGRect(x: x, y: y, width: width, height: height) }
         public var coreRegion: MonitorLayoutRegion {

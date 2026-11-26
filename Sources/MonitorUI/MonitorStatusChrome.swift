@@ -123,15 +123,9 @@
             Spacer(minLength: cornerShown ? MonitorStatusCorner.leadingGap : 52)
             HStack(spacing: 10) {
               if showsRecording || showsTimecode {
-                HStack(spacing: 10) {
-                  if showsRecording { MonitorRecordingReadout(status: status) }
-                  if showsTimecode {
-                    MonitorStatusClockSlot(read: clock, fallback: status.timecode) { shown in
-                      MonitorClock(shown, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23)
-                    }
-                  }
-                }
-                .monitorReadoutShadow()
+                MonitorTakeReadout(
+                  layout: layout, status: status, showsRecording: showsRecording,
+                  showsTimecode: showsTimecode, clock: clock)
               }
               // At its natural width: the leading readouts scale to make room, never the tiles.
               if cornerShown { corner().fixedSize(horizontal: true, vertical: false) }
@@ -160,6 +154,49 @@
           }
         }
       }
+    }
+  }
+
+  /// The take as a landscape status row shows it: STBY or REC with the elapsed time, then the
+  /// timecode, under the readout shadow. A desktop window draws the same readout across the
+  /// picture's top edge (`FieldMonitorLayout.take`); there `omitsUnknown` leaves out a recording
+  /// state the camera has not reported and a timecode it does not send, instead of a dash.
+  public struct MonitorTakeReadout: View {
+    private let layout: FieldMonitorLayout
+    private let status: MonitorStatusPresentation
+    private let showsRecording: Bool
+    private let showsTimecode: Bool
+    private let clock: (() -> String?)?
+    private let omitsUnknown: Bool
+
+    public init(
+      layout: FieldMonitorLayout, status: MonitorStatusPresentation, showsRecording: Bool = true,
+      showsTimecode: Bool = true, clock: (() -> String?)? = nil, omitsUnknown: Bool = false
+    ) {
+      self.layout = layout
+      self.status = status
+      self.showsRecording = showsRecording
+      self.showsTimecode = showsTimecode
+      self.clock = clock
+      self.omitsUnknown = omitsUnknown
+    }
+
+    public var body: some View {
+      HStack(spacing: 10) {
+        if showsRecording && (!omitsUnknown || status.recording != nil) {
+          MonitorRecordingReadout(status: status)
+        }
+        if showsTimecode {
+          MonitorStatusClockSlot(read: clock, fallback: status.timecode) { shown in
+            if !omitsUnknown {
+              MonitorClock(shown, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23)
+            } else if let reported = MonitorStatusPresentation.reportedClock(shown) {
+              MonitorClock(reported, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23)
+            }
+          }
+        }
+      }
+      .monitorReadoutShadow()
     }
   }
 

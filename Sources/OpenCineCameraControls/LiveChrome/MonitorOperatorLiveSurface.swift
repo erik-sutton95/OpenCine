@@ -697,6 +697,21 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         }
         .frame(width: CGFloat(layout.status.width))
     }
+    /// A desktop window's take: STBY or REC and the timecode at the picture's top trailing corner,
+    /// the phone's landscape readout. What the camera does not report is left out; command mode's
+    /// dashboard carries the take itself.
+    @ViewBuilder private var desktopTake: some View {
+        let take = layout.take
+        if mounts(.statusBar), !command, status.showsRecording || status.showsTimecode, take.width > 1 {
+            MonitorTakeReadout(layout: layout, status: status.recording, showsRecording: status.showsRecording,
+                showsTimecode: status.showsTimecode, clock: status.liveClock, omitsUnknown: true)
+                .padding(.trailing, FieldMonitorLayout.takeTrailingInset)
+                .frame(width: take.width, height: take.height, alignment: .trailing)
+                .position(x: take.midX, y: take.midY)
+                .allowsHitTesting(false)
+                .monitorHiddenWhileZoom(zoomRulerOpen)
+        }
+    }
     private var statusChrome: some View {
             let modeShown = !layout.portrait && layout.viewport.width >= 800 && !command ? status.mode : nil
             let plan = MonitorHeaderReadoutPolicy.plan(
@@ -981,6 +996,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             if !command { instruments }
             MonitorOperatorLiveBanners<Host.Palette>(layout: live, camera: identity.camera,
                 recovering: facts.picture.reconnecting, note: source.note, showsStatus: mounts(.statusBar))
+            // A desktop window: the take across the picture's top, where a phone shows it.
+            if desktop { desktopTake }
             if let motion = cameraViews.motion { motion.controls.allowsHitTesting(admitted && !transient) }
             if command, let dashboard = cameraViews.dashboard {
                 let frame = MonitorCommandDashboardLayout.frame(layout: layout,

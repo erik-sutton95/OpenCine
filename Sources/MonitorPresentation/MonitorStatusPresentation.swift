@@ -31,6 +31,15 @@ public struct MonitorStatusPresentation: Equatable, Sendable {
         }
     }
 
+    /// A clock as a desktop window's take prints it: the reported value, or nil when the source
+    /// reports none or only a placeholder, so nothing is printed rather than a dash (a camera over
+    /// an HDMI capture device sends no timecode).
+    public static func reportedClock(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespaces), value.contains(where: \.isNumber)
+        else { return nil }
+        return value
+    }
+
     public var elapsedLabel: String {
         guard let elapsedSeconds else { return "--:--" }
         return String(format: "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60)
