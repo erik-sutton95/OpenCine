@@ -249,6 +249,7 @@ func View.monitorDesktopCommands(_: MonitorDesktopCommandSink?) -> some SwiftUI.
 func View.monitorFullWidthCard() -> some SwiftUI.View
 func View.monitorGlass(in: some SwiftUI.Shape, density: MonitorGlassDensity) -> some SwiftUI.View
 func View.monitorHiddenWhileZoom(_: Swift.Bool) -> some SwiftUI.View
+func View.monitorMenuStyle() -> some SwiftUI.View
 func View.monitorPointerWheel(onHover: (CoreFoundation.CGPoint?) -> Swift.Void, onScroll: (MonitorPointerScroll) -> Swift.Void) -> some SwiftUI.View
 func View.monitorPresentationVisibility(_: Swift.Bool) -> some SwiftUI.View
 func View.monitorPulse(period: Foundation.TimeInterval) -> some SwiftUI.View
