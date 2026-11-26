@@ -70,6 +70,16 @@
         }
 
         @Environment(\.monitorWindowGeometry) private var windowGeometry
+        @Environment(\.monitorChromeStyle) private var chromeStyle
+        /// A desktop window's toolbar: its Media and Settings run this page's actions.
+        @Environment(\.monitorDesktopCommands) private var desktopCommands
+        /// This page, as the desktop window knows it: leaving clears only its own actions.
+        @State private var desktopOwner = UUID()
+
+        private var headerButtons: [CamerasPageHeaderButton] {
+            CamerasPageHeaderButton.buttons(
+                chrome: chromeStyle, multiview: onMultiview != nil, watchFeed: onWatchFeed != nil)
+        }
 
         public var body: some View {
             GeometryReader { proxy in
@@ -117,6 +127,14 @@
                 .frame(width: proxy.size.width, height: proxy.size.height)
             }
             .background(MonitorTheme.background).foregroundStyle(MonitorTheme.text)
+            // The window's toolbar Media and Settings (and their keys) open what this page's
+            // buttons open on a phone.
+            .onAppear {
+                guard let sink = desktopCommands else { return }
+                sink.register(desktopOwner, onSettings, onMedia, nil, nil, nil)
+                sink.applyMonitorLook(media: .film)
+            }
+            .onDisappear { desktopCommands?.unregister(desktopOwner) }
             .alert(
                 "Rename camera",
                 isPresented: Binding(
@@ -197,7 +215,7 @@
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if let onMultiview {
+                if headerButtons.contains(.multiview), let onMultiview {
                     Menu {
                         Button("Open Multiview", action: onMultiview).disabled(busy)
                         if let onWatchFeed {
@@ -214,15 +232,19 @@
                     .disabled(busy).accessibilityLabel("Open Multiview")
                     .accessibilityHint("Touch and hold for Watch a feed")
                     .accessibilityIdentifier("cameras.multiview")
-                } else if let onWatchFeed {
+                } else if headerButtons.contains(.watchFeed), let onWatchFeed {
                     Button(action: onWatchFeed) { headerIcon(.eye, tablet: tablet) }.disabled(busy)
                         .accessibilityLabel("Watch a feed").accessibilityIdentifier(
                             "cameras.watchFeed")
                 }
-                Button(action: onMedia) { headerIcon(.film, tablet: tablet) }
-                    .accessibilityLabel("Media library").accessibilityIdentifier("cameras.media")
-                Button(action: onSettings) { headerIcon(.settings, tablet: tablet) }
-                    .accessibilityLabel("Settings").accessibilityIdentifier("cameras.settings")
+                if headerButtons.contains(.media) {
+                    Button(action: onMedia) { headerIcon(.film, tablet: tablet) }
+                        .accessibilityLabel("Media library").accessibilityIdentifier("cameras.media")
+                }
+                if headerButtons.contains(.settings) {
+                    Button(action: onSettings) { headerIcon(.settings, tablet: tablet) }
+                        .accessibilityLabel("Settings").accessibilityIdentifier("cameras.settings")
+                }
             }
             .buttonStyle(.plain)
         }

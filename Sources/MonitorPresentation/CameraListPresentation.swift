@@ -207,3 +207,20 @@ public struct CameraConnectFailure: Equatable, Sendable {
         self.link = link
     }
 }
+
+/// The buttons in the cameras page's header, leading to trailing. In a desktop window the window's
+/// toolbar holds Media and Settings, so the page leaves them out and keeps Multiview; a phone or
+/// tablet shows all of them.
+public enum CamerasPageHeaderButton: Equatable, Sendable {
+    /// Multiview, with Watch a feed in its menu when offered.
+    case multiview
+    /// Watch a feed alone, when there is no Multiview.
+    case watchFeed
+    case media
+    case settings
+
+    public static func buttons(chrome: MonitorChromeStyle, multiview: Bool, watchFeed: Bool) -> [Self] {
+        let lead: [Self] = multiview ? [.multiview] : watchFeed ? [.watchFeed] : []
+        return chrome == .desktop ? lead : lead + [.media, .settings]
+    }
+}

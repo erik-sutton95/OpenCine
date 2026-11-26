@@ -196,3 +196,25 @@ struct FieldMonitorDesktopChromeTests {
                     locked: false, recording: nil, borrowed: false, chrome: .device))
     }
 }
+
+/// The cameras page on a desktop leaves Media and Settings to the window's toolbar and keeps
+/// Multiview; a phone or tablet keeps all of its buttons (spec 2026-11-26-desktop-tabs-take-in-feed-design.md).
+struct CamerasPageHeaderTests {
+    @Test func desktopLeavesMediaAndSettingsToTheToolbar() {
+        #expect(CamerasPageHeaderButton.buttons(chrome: .desktop, multiview: true, watchFeed: true) == [.multiview])
+        #expect(CamerasPageHeaderButton.buttons(chrome: .desktop, multiview: false, watchFeed: true) == [.watchFeed])
+        #expect(CamerasPageHeaderButton.buttons(chrome: .desktop, multiview: false, watchFeed: false).isEmpty)
+    }
+
+    @Test func deviceKeepsEveryButton() {
+        #expect(
+            CamerasPageHeaderButton.buttons(chrome: .device, multiview: true, watchFeed: true)
+                == [.multiview, .media, .settings])
+        #expect(
+            CamerasPageHeaderButton.buttons(chrome: .device, multiview: false, watchFeed: true)
+                == [.watchFeed, .media, .settings])
+        #expect(
+            CamerasPageHeaderButton.buttons(chrome: .device, multiview: false, watchFeed: false)
+                == [.media, .settings])
+    }
+}
