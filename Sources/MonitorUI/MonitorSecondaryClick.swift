@@ -10,7 +10,8 @@
     /// On the Mac one recognizer per window (`buttonMaskRequired = .secondary`, recognizing beside
     /// every other recognizer and cancelling no touches) takes the click before SwiftUI's own
     /// gestures can claim it, and hands it to the smallest registered region under the pointer that
-    /// is on screen: a SwiftUI view (`monitorSecondaryClick`) or a UIKit view (`register`).
+    /// is on screen and not under a presented page: a SwiftUI view (`monitorSecondaryClick`) or a
+    /// UIKit view (`register`).
     public enum MonitorSecondaryClick {
         /// True where a secondary click stands in for a long press: a Mac (Mac Catalyst) only.
         public static var standsInForLongPress: Bool {
@@ -29,6 +30,28 @@
             recognizer.delaysTouchesBegan = false
             recognizer.delaysTouchesEnded = false
             return recognizer
+        }
+
+        /// Whether a registered region takes a click in `window`: on screen (neither it nor a
+        /// superview hidden or transparent) and inside the window's front presentation, so a page
+        /// presented over it (a full-screen cover such as Multiview, or a sheet) hides it from the
+        /// click.
+        @MainActor static func answers(_ view: UIView, in window: UIWindow) -> Bool {
+            guard view.window === window else { return false }
+            var front = window.rootViewController
+            while let next = front?.presentedViewController, !next.isBeingDismissed { front = next }
+            return answers(view, front: front?.viewIfLoaded)
+        }
+
+        /// `front` is the root view of the window's front presentation (nil: none known).
+        @MainActor static func answers(_ view: UIView, front: UIView?) -> Bool {
+            var current: UIView? = view
+            while let next = current {
+                if next.isHidden || next.alpha < 0.01 || next.layer.opacity < 0.01 { return false }
+                current = next.superview
+            }
+            guard let front else { return true }
+            return view.isDescendant(of: front)
         }
 
         /// Runs `action` with the click's point in `view` when a Mac's secondary click lands on it.
@@ -179,7 +202,8 @@
                 registrations.removeAll { $0.view == nil }
                 let target = registrations
                     .compactMap { registration -> (MonitorSecondaryClickRegistration, UIView, CGFloat)? in
-                        guard let view = registration.view, view.window === window, Self.shown(view) else { return nil }
+                        guard let view = registration.view, MonitorSecondaryClick.answers(view, in: window)
+                        else { return nil }
                         let frame = view.convert(view.bounds, to: window)
                         guard frame.contains(point) else { return nil }
                         return (registration, view, frame.width * frame.height)
@@ -195,16 +219,6 @@
                 }
                 Self.log.notice("secondary click runs the long-press action")
                 registration.action(window.convert(point, to: view))
-            }
-
-            /// On screen: in a window, and neither it nor a superview hidden or transparent.
-            private static func shown(_ view: UIView) -> Bool {
-                var current: UIView? = view
-                while let next = current {
-                    if next.isHidden || next.alpha < 0.01 || next.layer.opacity < 0.01 { return false }
-                    current = next.superview
-                }
-                return true
             }
 
             /// The click never stops another recognizer, and no other recognizer stops it.
