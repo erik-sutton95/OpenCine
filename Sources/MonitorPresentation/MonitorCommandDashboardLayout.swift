@@ -26,7 +26,13 @@ public enum MonitorCommandDashboardLayout {
         let trailing: Double
         var top: Double
         let bottom: Double
-        if layout.portrait {
+        if layout.chrome == .desktop {
+            // Under the status row, between the leading edge and the record and DISP rail.
+            leading = 16
+            trailing = min(layout.record.x, layout.display.x) - 12
+            top = layout.status.maxY + 12
+            bottom = layout.values.maxY - 4
+        } else if layout.portrait {
             leading = max(16, layout.status.x)
             trailing = min(layout.viewport.maxX - 16, layout.status.maxX)
             top =

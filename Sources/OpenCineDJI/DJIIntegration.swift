@@ -138,6 +138,9 @@ public final class DJIIntegration: CameraIntegration {
         let continuation: AsyncStream<ConnectionEvent>.Continuation
         var task: Task<Void, Never>?
         var last: ConnectionProgress?
+        /// A record made from a sighting (a computer pairing a camera it never saved): saved once
+        /// the camera starts to move, so a pairing that stops before leaves no camera behind.
+        var saveOnMove: SavedCamera?
 
         init(
             target: ConnectTarget, route: SavedRoute?,
@@ -201,6 +204,7 @@ public final class DJIIntegration: CameraIntegration {
         var route: SavedRoute?
         var setup = DJISetup.cameraWiFi
         var restore = false
+        var saveOnMove: SavedCamera?
         switch target {
         case .saved(let camera, let routeID):
             route = camera.routes.first { $0.id == routeID }
@@ -222,11 +226,13 @@ public final class DJIIntegration: CameraIntegration {
             route = added
             setup = Self.setup(added, password: draft.secret)
             restore = StationRoutes.mayBeInStationRole(camera)
-            saveRecord(Self.stamping(StationRoutes.adding(added, to: camera), movingTo: added.kind))
+            let stamped = Self.stamping(StationRoutes.adding(added, to: camera), movingTo: added.kind)
+            if camera.routes.isEmpty { saveOnMove = stamped } else { saveRecord(stamped) }
         }
         // One pipeline, one connection: a newer attempt ends the older one.
         current?.continuation.finish()
         let attempt = Attempt(target: target, route: route, continuation: continuation)
+        attempt.saveOnMove = saveOnMove
         current = attempt
         continuation.onTermination = { [weak self] termination in
             guard case .cancelled = termination else { return }
@@ -291,6 +297,10 @@ public final class DJIIntegration: CameraIntegration {
 
     private func stage(_ stage: DJIConnectionStage, _ text: String?) {
         guard let attempt = current else { return }
+        if let record = attempt.saveOnMove, [.joiningWiFi, .findingCamera, .openingDatalink].contains(stage) {
+            attempt.saveOnMove = nil
+            saveRecord(record)
+        }
         let (phase, step, prompt, note): (ConnectionPhase, Int, ConnectionPrompt?, String?) =
             switch stage {
             case .scanning: (.link, 0, nil, Self.looking)

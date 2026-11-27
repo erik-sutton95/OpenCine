@@ -8,7 +8,7 @@
     // Kotlin twin: monitor-ui MonitorLiveLayout.kt.
 
     /// Live chrome frames in CGRect space, built from the core `FieldMonitorLayout`
-    /// by ``fieldMonitor(size:safeArea:sourceAspect:fill:showsValues:showsBottomBars:topControlInset:)``.
+    /// by ``fieldMonitor(size:safeArea:sourceAspect:fill:showsValues:showsBottomBars:topControlInset:joystick:valueCount:chrome:)``.
     public struct LiveMonitorLayout: Equatable {
         public var presentation: FieldMonitorLayout? = nil
         public var viewport: CGSize
@@ -414,15 +414,22 @@
         public static func fieldMonitor(
             size: CGSize, safeArea: EdgeInsets, sourceAspect: CGFloat,
             fill: Bool, showsValues: Bool, showsBottomBars: Bool,
-            topControlInset: CGFloat = 0, joystick: MonitorJoystickSize = .medium, valueCount: Int? = nil
+            topControlInset: CGFloat = 0, joystick: MonitorJoystickSize = .medium, valueCount: Int? = nil,
+            chrome: MonitorChromeStyle = .device
         ) -> Self {
+            let window = MonitorSafeArea(
+                top: safeArea.top, leading: safeArea.leading,
+                bottom: safeArea.bottom, trailing: safeArea.trailing)
             let p = FieldMonitorLayout(
-                width: size.width, height: size.height,
-                safeArea: MonitorSafeArea(
-                    top: safeArea.top, leading: safeArea.leading,
-                    bottom: safeArea.bottom, trailing: safeArea.trailing),
+                width: size.width, height: size.height, safeArea: window,
                 sourceAspect: sourceAspect, fill: fill, showsValues: showsValues,
-                topControlInset: topControlInset, joystick: joystick, valueCount: valueCount)
+                topControlInset: topControlInset, joystick: joystick, valueCount: valueCount,
+                chrome: chrome)
+            // Popups, sheets and scopes clamp to this: below the status row in a desktop window.
+            let content = p.contentSafeArea(window)
+            let safeArea = EdgeInsets(
+                top: content.top, leading: content.leading, bottom: content.bottom,
+                trailing: content.trailing)
             return Self(
                 presentation: p, viewport: size, feed: p.picture.cgRect, picture: p.picture.cgRect,
                 lock: p.lock.cgRect, battery: p.telemetry.cgRect, topDeck: p.status.cgRect,
@@ -432,6 +439,12 @@
                 isWidthConstrained: !p.tablet && size.width < 740,
                 showsBottomBars: showsBottomBars, safeArea: safeArea)
         }
+    }
+
+    extension LiveMonitorLayout {
+        /// The rect the live stream control hangs under: the status row on a device, the take band
+        /// across the picture's top in a desktop window (`FieldMonitorLayout.liveStreamDeck`).
+        public var liveStreamDeck: CGRect { presentation?.liveStreamDeck.cgRect ?? topDeck }
     }
 
     extension MonitorRect {

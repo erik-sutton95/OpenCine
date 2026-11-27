@@ -67,6 +67,8 @@
                             }
                         }
                 )
+                // A Mac's right-click saves the current zoom here, as the long press does.
+                .monitorSecondaryClick { save(index) }
                 .accessibilityElement(children: .ignore)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityLabel("Zoom preset \(index + 1)")

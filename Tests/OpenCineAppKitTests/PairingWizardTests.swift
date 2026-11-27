@@ -30,7 +30,7 @@ import Testing
         let (model, fake) = model()
         model.beginPairing()
         #expect(await eventually { model.scanning })
-        let empty = CamerasMapping.wizard(model, Self.wizard)
+        let empty = CamerasMapping.wizard(model, Self.wizard, host: .iPhone)
         #expect(
             empty
                 == CameraPairingPresentation(
@@ -44,13 +44,13 @@ import Testing
                     emptyTitle: "Looking for cameras", primaryAction: "Continue"))
         var blocked = Self.wizard
         blocked.discoveryFailure = T.failure
-        #expect(CamerasMapping.wizard(model, blocked).emptyTitle == "No cameras yet")
+        #expect(CamerasMapping.wizard(model, blocked, host: .iPhone).emptyTitle == "No cameras yet")
 
         fake.publish([T.sighting])
         #expect(await eventually { !model.nearby.isEmpty })
-        #expect(CamerasMapping.wizard(model, Self.wizard).primaryActionEnabled == false)
+        #expect(CamerasMapping.wizard(model, Self.wizard, host: .iPhone).primaryActionEnabled == false)
         model.selection = "n2"
-        let chosen = CamerasMapping.wizard(model, Self.wizard)
+        let chosen = CamerasMapping.wizard(model, Self.wizard, host: .iPhone)
         #expect(chosen.target == "CAM-2" && chosen.hint == "Selected CAM-2" && chosen.primaryActionEnabled)
         #expect(chosen.devices.map(\.id) == ["n2"] && chosen.devices[0].isPrimary && chosen.emptyTitle == nil)
         #expect(chosen.backAction == nil)
@@ -65,17 +65,17 @@ import Testing
         model.selection = "n2"
         model.connect(try #require(model.nearby.first))
         #expect(await eventually { model.attempts["n2"] != nil })
-        let starting = CamerasMapping.wizard(model, Self.wizard)
+        let starting = CamerasMapping.wizard(model, Self.wizard, host: .iPhone)
         #expect(starting.currentStep == 1 && starting.devices.isEmpty && starting.progress == "Live label")
         #expect(starting.primaryAction == nil && !starting.primaryActionEnabled && starting.backAction == "Cancel")
 
         fake.attempts[0].progress(.link, step: 0, note: "Looking for the camera")
         #expect(await eventually { model.attempts["n2"]?.progress != nil })
-        #expect(CamerasMapping.wizard(model, Self.wizard).currentStep == 0)
+        #expect(CamerasMapping.wizard(model, Self.wizard, host: .iPhone).currentStep == 0)
 
         fake.attempts[0].progress(.awaitingApproval, step: 0, prompt: .approveOnCamera("Approve"))
         #expect(await eventually { model.attempts["n2"]?.progress?.phase == .awaitingApproval })
-        let approve = CamerasMapping.wizard(model, Self.wizard)
+        let approve = CamerasMapping.wizard(model, Self.wizard, host: .iPhone)
         #expect(approve.currentStep == 1 && approve.title == "Approve on the camera" && approve.body == "Approve body")
         #expect(approve.hint == "Nothing to type. Approve it on the camera" && approve.checks.isEmpty)
         #expect(
@@ -90,7 +90,7 @@ import Testing
         #expect(await eventually { model.attempts["n2"]?.progress?.current == 1 })
         var wizard = Self.wizard
         wizard.joinedNetwork = "LUNA-1"
-        let join = CamerasMapping.wizard(model, wizard)
+        let join = CamerasMapping.wizard(model, wizard, host: .iPhone)
         #expect(join.currentStep == 2 && join.hint == "iOS asks to join the camera network")
         #expect(
             join.instructions == [
@@ -108,12 +108,12 @@ import Testing
 
         fake.attempts[0].progress(.link, step: 2)
         #expect(await eventually { model.attempts["n2"]?.progress?.current == 2 })
-        let video = CamerasMapping.wizard(model, Self.wizard)
+        let video = CamerasMapping.wizard(model, Self.wizard, host: .iPhone)
         #expect(video.currentStep == 3 && video.instructions.isEmpty && video.checks.last?.stateLabel == "WAITING")
         #expect(video.checks.last?.subtitle == "Opening the video link…")
         wizard.vpnActive = true
         #expect(
-            CamerasMapping.wizard(model, wizard).instructions == [
+            CamerasMapping.wizard(model, wizard, host: .iPhone).instructions == [
                 .init(title: "Check the connection", icon: .phone, lines: [LocalVPNFilter.wizardBanner])
             ])
     }
@@ -131,17 +131,17 @@ import Testing
         failure.actions = [.retry]
         fake.attempts[0].fail(failure)
         #expect(await eventually { model.failures["n2"] != nil })
-        let failed = CamerasMapping.wizard(model, Self.wizard)
+        let failed = CamerasMapping.wizard(model, Self.wizard, host: .iPhone)
         #expect(failed.currentStep == 0 && failed.title == "Find your camera" && failed.body == "Find body")
         #expect(failed.error == "Turn on Bluetooth for this app." && failed.progress == nil && failed.instructions.isEmpty)
         #expect(failed.primaryAction == "Try again" && failed.primaryActionEnabled)
 
         model.dismissFailure("n2")
-        #expect(CamerasMapping.wizard(model, Self.wizard).error == nil)
+        #expect(CamerasMapping.wizard(model, Self.wizard, host: .iPhone).error == nil)
 
         var wizard = Self.wizard
         wizard.discoveryFailure = T.failure
-        let settings = CamerasMapping.wizard(model, wizard)
+        let settings = CamerasMapping.wizard(model, wizard, host: .iPhone)
         #expect(settings.error == "Turn on Bluetooth for this app." && settings.primaryAction == "Open Settings")
     }
 
@@ -160,7 +160,7 @@ import Testing
         #expect(await eventually { model.failures["n2"] != nil })
         fake.publish([])
         #expect(await eventually { model.nearby.isEmpty })
-        let failed = CamerasMapping.wizard(model, Self.wizard)
+        let failed = CamerasMapping.wizard(model, Self.wizard, host: .iPhone)
         #expect(failed.error == failure.message)
         #expect(failed.primaryAction == "Try again")
         #expect(failed.target == "CAM-2")
@@ -183,5 +183,79 @@ import Testing
                     id: "n3", name: "CAM-3", subtitle: "Brand · nearby", badge: "IN USE",
                     status: "In use by another device", actionTitle: "Pair", isAvailable: false),
             ])
+    }
+
+    /// A connect on the join step (progress step 1), as a station or camera Wi-Fi join reports it.
+    @available(macOS 14, *)
+    func joining() async throws -> CamerasModel {
+        let (model, fake) = model(saved: [T.camera])
+        model.beginPairing()
+        fake.publish([T.sighting])
+        #expect(await eventually { !model.nearby.isEmpty })
+        model.selection = "n2"
+        model.connect(try #require(model.nearby.first))
+        #expect(await eventually { model.attempts["n2"] != nil })
+        fake.attempts[0].progress(.joiningNetwork, step: 1)
+        #expect(await eventually { model.attempts["n2"]?.progress?.current == 1 })
+        return model
+    }
+
+    @available(macOS 14, *)
+    @Test func macStepThreeCopy() async throws {
+        let model = try await joining()
+        let join = CamerasMapping.wizard(model, Self.wizard, host: .mac, stationNetwork: "Studio")
+        #expect(join.currentStep == 2 && join.title == "Join your network")
+        #expect(join.steps[2] == .init("Join your network", "Your network"))
+        #expect(join.body == "The camera joins Studio, the same network as this Mac.")
+        #expect(join.hint == "The camera joins Studio")
+        #expect(
+            join.instructions == [
+                .init(title: "On the camera", icon: .camera, lines: ["Leave it on"]),
+                .init(
+                    title: "On this Mac", icon: .phone,
+                    lines: ["Wait here while the camera joins Studio", LocalVPNFilter.joinWifiPhoneStep]),
+            ])
+        #expect(
+            join.checks == [
+                .init(title: "Bluetooth link", subtitle: "CAM-2", state: .complete, stateLabel: "OK"),
+                .init(title: "Your network", subtitle: "Studio", state: .active, stateLabel: "JOINING"),
+                .init(title: "Live picture", subtitle: "Starts after Wi-Fi joins", state: .waiting, stateLabel: "WAITING"),
+            ])
+        let words = [join.title, join.body, join.hint] + join.instructions.flatMap { [$0.title] + $0.lines }
+            + join.checks.flatMap { [$0.title, $0.subtitle] } + join.steps.flatMap { [$0.title, $0.subtitle] }
+        #expect(!words.contains { $0.contains("iOS") || $0.contains("iPhone") || $0.contains("Camera Wi-Fi") })
+        // No network chosen yet: the words still read, without a name.
+        let unnamed = CamerasMapping.wizard(model, Self.wizard, host: .mac)
+        #expect(unnamed.body == "The camera joins your network, the same network as this Mac.")
+    }
+
+    @available(macOS 14, *)
+    @Test func iPhoneStepThreeCopyUnchanged() async throws {
+        let model = try await joining()
+        let join = CamerasMapping.wizard(model, Self.wizard, host: .iPhone, stationNetwork: "Studio")
+        #expect(join.currentStep == 2 && join.title == "Join camera Wi-Fi" && join.body == "Wi-Fi body")
+        #expect(join.steps[2] == .init("Join camera Wi-Fi", "Camera network"))
+        #expect(join.hint == "iOS asks to join the camera network")
+        #expect(
+            join.instructions == [
+                .init(title: "On the camera", icon: .camera, lines: ["Leave it on"]),
+                .init(
+                    title: "On iPhone", icon: .phone,
+                    lines: ["Tap Join when iOS asks to join the camera network", LocalVPNFilter.joinWifiPhoneStep]),
+            ])
+        #expect(join.checks[1] == .init(title: "Camera Wi-Fi", subtitle: "Waiting for the camera network", state: .active, stateLabel: "JOINING"))
+    }
+
+    @available(macOS 14, *)
+    @Test func macApprovePageNamesThisMac() async throws {
+        let (model, fake) = model(saved: [T.camera])
+        model.beginPairing()
+        fake.publish([T.sighting])
+        #expect(await eventually { !model.nearby.isEmpty })
+        model.selection = "n2"
+        model.connect(try #require(model.nearby.first))
+        #expect(await eventually { model.attempts["n2"] != nil })
+        let approve = CamerasMapping.wizard(model, Self.wizard, host: .mac)
+        #expect(approve.currentStep == 1 && approve.instructions.last?.title == "On this Mac")
     }
 }

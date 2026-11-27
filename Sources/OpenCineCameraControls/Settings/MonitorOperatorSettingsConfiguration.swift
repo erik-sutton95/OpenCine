@@ -67,6 +67,8 @@ public struct MonitorSettingsLinkSource {
 }
 
 public struct MonitorSettingsSharingSource {
+    /// Optional host capability controls, such as a native virtual-camera output.
+    let additionalGroups: [MonitorSettingsSourceGroup]
     let enabled: Bool
     let unavailableHelp: String?
     let sharing: Binding<Bool>, passcode: Binding<String>, controlRequests: Binding<Bool>
@@ -85,7 +87,9 @@ public struct MonitorSettingsSharingSource {
         sharing: Binding<Bool>, passcode: Binding<String>, controlRequests: Binding<Bool>, priority: Binding<Int>,
         help: MonitorFeedSharingHelp, browseHelp: String, browse: @escaping () -> Void,
         passcodeChanged: @escaping (String) -> Void,
-        joinCode: (@MainActor @Sendable () -> AnyView)? = nil) {
+        joinCode: (@MainActor @Sendable () -> AnyView)? = nil,
+        additionalGroups: [MonitorSettingsSourceGroup] = []) {
+        self.additionalGroups = additionalGroups
         self.enabled = enabled; self.unavailableHelp = unavailableHelp
         self.sharing = sharing; self.passcode = passcode; self.controlRequests = controlRequests; self.priority = priority
         self.prioritySelection = nil; self.priorities = nil; self.watchers = nil
@@ -98,7 +102,9 @@ public struct MonitorSettingsSharingSource {
         prioritySelection: Binding<String>, priorities: [String], help: MonitorFeedSharingHelp,
         browseHelp: String, browse: @escaping () -> Void, passcodeChanged: @escaping (String) -> Void,
         watchers: MonitorSettingsWatchersSource? = nil, unavailableTitle: String = "Sharing unavailable",
-        unavailableValue: String? = nil, joinCode: (@MainActor @Sendable () -> AnyView)? = nil) {
+        unavailableValue: String? = nil, joinCode: (@MainActor @Sendable () -> AnyView)? = nil,
+        additionalGroups: [MonitorSettingsSourceGroup] = []) {
+        self.additionalGroups = additionalGroups
         precondition(!priorities.isEmpty)
         self.enabled = enabled; self.unavailableHelp = unavailableHelp
         self.sharing = sharing; self.passcode = passcode; self.controlRequests = controlRequests

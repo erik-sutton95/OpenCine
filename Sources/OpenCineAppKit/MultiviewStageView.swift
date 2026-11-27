@@ -1,6 +1,7 @@
 #if os(iOS)
     import MonitorPresentation
     import MonitorUI
+    import OpenCineCore
     import OpenCineMulticam
     import SwiftUI
 
@@ -280,6 +281,7 @@
                 } label: {
                     label
                 }
+                .monitorMenuStyle()
                 .accessibilityLabel(value.title + " " + value.value)
                 .accessibilityIdentifier("multiview.value.\(value.title.lowercased())")
             }
@@ -812,6 +814,7 @@
                 } label: {
                     label
                 }
+                .monitorMenuStyle()
                 .accessibilityLabel(readout.title + " " + readout.value)
                 .accessibilityIdentifier("multiview.value.\(readout.title.lowercased())")
             }
@@ -832,7 +835,7 @@
         var barCount: Int = 5
 
         var body: some View {
-            let tablet = UIDevice.current.userInterfaceIdiom == .pad
+            let tablet = HostDevice.current.isLargeScreen
             Group {
                 if let bars {
                     MonitorGaugeBars(

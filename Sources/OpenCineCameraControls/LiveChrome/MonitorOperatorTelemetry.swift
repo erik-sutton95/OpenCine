@@ -1,6 +1,7 @@
 #if os(iOS)
 import MonitorPresentation
 import MonitorUI
+import OpenCineCore
 import SwiftUI
 import UIKit
 
@@ -34,7 +35,7 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
     @Environment(\.monitorAdaptiveTelemetryPadding) private var adaptivePadding
     @State private var phone = MonitorOperatorPowerReading(id: "phone", title: "Phone battery", camera: false)
     static var nativeMetrics: MonitorTelemetryMetrics {
-        UIDevice.current.userInterfaceIdiom == .pad ? .tablet : .phone
+        HostDevice.current.isLargeScreen ? .tablet : .phone
     }
     private var resolvedMetrics: MonitorTelemetryMetrics { metrics ?? Self.nativeMetrics }
 

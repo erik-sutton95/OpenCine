@@ -70,6 +70,16 @@
         }
 
         @Environment(\.monitorWindowGeometry) private var windowGeometry
+        @Environment(\.monitorChromeStyle) private var chromeStyle
+        /// A desktop window's toolbar: its Media and Settings run this page's actions.
+        @Environment(\.monitorDesktopCommands) private var desktopCommands
+        /// This page, as the desktop window knows it: leaving clears only its own actions.
+        @State private var desktopOwner = UUID()
+
+        private var headerButtons: [CamerasPageHeaderButton] {
+            CamerasPageHeaderButton.buttons(
+                chrome: chromeStyle, multiview: onMultiview != nil, watchFeed: onWatchFeed != nil)
+        }
 
         public var body: some View {
             GeometryReader { proxy in
@@ -117,6 +127,14 @@
                 .frame(width: proxy.size.width, height: proxy.size.height)
             }
             .background(MonitorTheme.background).foregroundStyle(MonitorTheme.text)
+            // The window's toolbar Media and Settings (and their keys) open what this page's
+            // buttons open on a phone.
+            .onAppear {
+                guard let sink = desktopCommands else { return }
+                sink.register(desktopOwner, onSettings, onMedia, nil, nil, nil)
+                sink.applyMonitorLook(media: .film)
+            }
+            .onDisappear { desktopCommands?.unregister(desktopOwner) }
             .alert(
                 "Rename camera",
                 isPresented: Binding(
@@ -197,7 +215,7 @@
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if let onMultiview {
+                if headerButtons.contains(.multiview), let onMultiview {
                     Menu {
                         Button("Open Multiview", action: onMultiview).disabled(busy)
                         if let onWatchFeed {
@@ -210,18 +228,23 @@
                     } primaryAction: {
                         if !busy { onMultiview() }
                     }
+                    .monitorMenuStyle()
                     .disabled(busy).accessibilityLabel("Open Multiview")
                     .accessibilityHint("Touch and hold for Watch a feed")
                     .accessibilityIdentifier("cameras.multiview")
-                } else if let onWatchFeed {
+                } else if headerButtons.contains(.watchFeed), let onWatchFeed {
                     Button(action: onWatchFeed) { headerIcon(.eye, tablet: tablet) }.disabled(busy)
                         .accessibilityLabel("Watch a feed").accessibilityIdentifier(
                             "cameras.watchFeed")
                 }
-                Button(action: onMedia) { headerIcon(.film, tablet: tablet) }
-                    .accessibilityLabel("Media library").accessibilityIdentifier("cameras.media")
-                Button(action: onSettings) { headerIcon(.settings, tablet: tablet) }
-                    .accessibilityLabel("Settings").accessibilityIdentifier("cameras.settings")
+                if headerButtons.contains(.media) {
+                    Button(action: onMedia) { headerIcon(.film, tablet: tablet) }
+                        .accessibilityLabel("Media library").accessibilityIdentifier("cameras.media")
+                }
+                if headerButtons.contains(.settings) {
+                    Button(action: onSettings) { headerIcon(.settings, tablet: tablet) }
+                        .accessibilityLabel("Settings").accessibilityIdentifier("cameras.settings")
+                }
             }
             .buttonStyle(.plain)
         }
@@ -449,7 +472,7 @@
                             CameraPageGlyph(icon: .more).frame(
                                 width: 15, height: 15
                             ).frame(width: 36, height: 44)
-                        }.disabled(busy).accessibilityLabel("Options for \(item.name)")
+                        }.monitorMenuStyle().disabled(busy).accessibilityLabel("Options for \(item.name)")
                     }
                     if let failure = item.failure, !item.isBusy, let act = actions.failureAction {
                         ForEach(failure.actions) { action in
@@ -473,6 +496,13 @@
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 13)
+            // A Mac's right-click on the card offers what its "..." button offers.
+            .monitorMacContextMenu {
+                if saved, !busy {
+                    if let rename = actions.rename { Button("Rename") { rename(item) } }
+                    if let remove = actions.remove { Button("Remove", role: .destructive) { remove(item) } }
+                }
+            }
             .background(
                 item.isPrimary
                     ? Color(red: 28 / 255, green: 30 / 255, blue: 31 / 255)

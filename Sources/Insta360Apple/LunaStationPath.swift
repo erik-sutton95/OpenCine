@@ -19,7 +19,42 @@ enum LunaStationPath {
     }
 
     /// This phone's address on the Personal Hotspot it hosts (`bridge*`/`ap*`) or on Wi-Fi (`en0`).
+    /// On a Mac: its first interface on a private network (Wi-Fi or Ethernet, the default route's
+    /// first).
     static func address(hotspot: Bool) -> Address? {
+        #if targetEnvironment(macCatalyst)
+            if !hotspot { return stationAddresses(hotspot: false).first }
+        #endif
+        return interfaceAddress(hotspot: hotspot)
+    }
+
+    /// Every network to search for a camera: on a Mac each interface on a private network, the
+    /// default route's first; elsewhere this phone's one address.
+    static func stationAddresses(hotspot: Bool) -> [Address] {
+        #if targetEnvironment(macCatalyst)
+            if !hotspot {
+                return HostInterfacePick.stationInterfaces(HostInterfaces.current()).map {
+                    Address(address: $0.ipv4, netmask: $0.netmask)
+                }
+            }
+        #endif
+        return interfaceAddress(hotspot: hotspot).map { [$0] } ?? []
+    }
+
+    /// This device's address toward `host`: on a Mac, the interface on that host's subnet.
+    static func address(hotspot: Bool, toward host: String) -> Address? {
+        #if targetEnvironment(macCatalyst)
+            if !hotspot {
+                let interfaces = HostInterfacePick.stationInterfaces(HostInterfaces.current())
+                if let iface = HostInterfacePick.interface(reaching: host, in: interfaces) {
+                    return Address(address: iface.ipv4, netmask: iface.netmask)
+                }
+            }
+        #endif
+        return address(hotspot: hotspot)
+    }
+
+    private static func interfaceAddress(hotspot: Bool) -> Address? {
         var pointer: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&pointer) == 0, let first = pointer else { return nil }
         defer { freeifaddrs(first) }
@@ -87,6 +122,24 @@ enum LunaStationPath {
             }
             return hosted
         }
+        #if targetEnvironment(macCatalyst)
+            // A Mac does not join: it is on the network by Wi-Fi or Ethernet already, and its
+            // Wi-Fi name says nothing about an Ethernet link to the same router.
+            guard let local = address(hotspot: false) else {
+                throw ConnectionFailure.luna(
+                    .joinFailed, "station.host-off-network", StationCopy.noStationNetwork,
+                    phase: .joiningNetwork, actions: [.retry])
+            }
+            return local
+        #else
+            return try await joinNetwork(network, logPrefix: logPrefix, apply: apply)
+        #endif
+    }
+
+    private static func joinNetwork(
+        _ network: LunaStationNetwork, logPrefix: String,
+        apply: (@MainActor (CameraHotspotConfiguration) async throws -> Void)?
+    ) async throws -> Address {
         if await currentSSID() != network.ssid {
             #if os(iOS) && !targetEnvironment(macCatalyst) && !targetEnvironment(simulator)
                 let security: CameraHotspotConfiguration.Security =
@@ -138,9 +191,10 @@ enum LunaStationPath {
             phase: .joiningNetwork, actions: [.openSettings, .retry])
     }
 
-    /// This phone's Wi-Fi name; nil when iOS withholds it (no location permission) or off Wi-Fi.
+    /// This phone's (or Mac's) Wi-Fi name; nil when the system withholds it (no location
+    /// permission or Wi-Fi info entitlement) or off Wi-Fi.
     static func currentSSID() async -> String? {
-        #if os(iOS) && !targetEnvironment(macCatalyst) && !targetEnvironment(simulator)
+        #if os(iOS) && !targetEnvironment(simulator)
             await NEHotspotNetwork.fetchCurrent()?.ssid
         #else
             nil
@@ -179,8 +233,45 @@ enum LunaStationPath {
         isCurrent: @escaping @MainActor () -> Bool,
         clock: HostClock, probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult
     ) async throws -> String? {
-        let hosts = ((preferred.map { [$0] } ?? []) + candidates(around: local).filter { $0 != preferred })
-            .filter { !excluding.contains($0) }
+        try await findCamera(
+            on: [local], preferred: preferred, budget: budget, excluding: excluding, isCurrent: isCurrent,
+            clock: clock, probe: probe)?.host
+    }
+
+    /// A camera found on one of this device's networks, and this device's address on that network.
+    struct Found: Equatable, Sendable {
+        var host: String
+        /// This device's address on the camera's network: the link to the camera leaves from it.
+        var local: String
+    }
+
+    /// The hosts to search on every network in `locals` (in that order, nearest first within
+    /// each), each with the address it is dialled from; `preferred` first, from the network that
+    /// holds it (else the first), and none twice.
+    nonisolated static func searchOrder(_ locals: [Address], preferred: String?) -> [Found] {
+        let networks = locals.map { ($0, candidates(around: $0)) }
+        var order: [Found] = []
+        if let preferred, let first = locals.first {
+            let local = networks.first { $0.1.contains(preferred) }?.0 ?? first
+            order.append(Found(host: preferred, local: local.address))
+        }
+        var seen = Set(order.map(\.host))
+        for (local, hosts) in networks {
+            for host in hosts where seen.insert(host).inserted {
+                order.append(Found(host: host, local: local.address))
+            }
+        }
+        return order
+    }
+
+    /// ``findCamera(on:preferred:budget:excluding:isCurrent:clock:probe:)`` over every network in
+    /// `locals` (a computer on Wi-Fi and Ethernet), the first listed searched first in each round.
+    static func findCamera(
+        on locals: [Address], preferred: String?, budget: Duration, excluding: Set<String> = [],
+        isCurrent: @escaping @MainActor () -> Bool,
+        clock: HostClock, probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult
+    ) async throws -> Found? {
+        let hosts = searchOrder(locals, preferred: preferred).filter { !excluding.contains($0.host) }
         let batches = stride(from: 0, to: hosts.count, by: 32).map { Array(hosts[$0..<min($0 + 32, hosts.count)]) }
         let deadline = clock.now() + budget
         var denied = false
@@ -190,17 +281,17 @@ enum LunaStationPath {
                 try Task.checkCancellation()
                 guard isCurrent() else { throw CancellationError() }
                 let (found, deniedHere) = await withTaskGroup(
-                    of: (String, ProbeResult).self, returning: (String?, Bool).self
+                    of: (Found, ProbeResult).self, returning: (Found?, Bool).self
                 ) { group in
-                    for host in batch {
-                        group.addTask { (host, await probe(host, local.address)) }
+                    for candidate in batch {
+                        group.addTask { (candidate, await probe(candidate.host, candidate.local)) }
                     }
                     var deniedHere = false
-                    for await (host, result) in group {
+                    for await (candidate, result) in group {
                         switch result {
                         case .camera:
                             group.cancelAll()
-                            return (host, deniedHere)
+                            return (candidate, deniedHere)
                         case .localNetworkDenied: deniedHere = true
                         case .absent: break
                         }
@@ -234,7 +325,19 @@ enum LunaStationPath {
         isCurrent: @escaping @MainActor () -> Bool, open: (_ host: String) async throws -> Void
     ) async throws -> String? {
         try await findRequestedCamera(
-            on: local, preferred: preferred, budget: budget, excluding: excluding, isCurrent: isCurrent,
+            on: [local], preferred: preferred, budget: budget, excluding: excluding, isCurrent: isCurrent,
+            clock: .live, probe: { host, local in await probe(host, local: local) }, open: { host, _ in try await open(host) }
+        )?.host
+    }
+
+    /// ``findRequestedCamera(on:preferred:budget:excluding:isCurrent:open:)`` over every network
+    /// in `locals`; `open` gets the host and this device's address on its network.
+    static func findRequestedCamera(
+        on locals: [Address], preferred: String?, budget: Duration, excluding: Set<String>,
+        isCurrent: @escaping @MainActor () -> Bool, open: (_ host: String, _ local: String) async throws -> Void
+    ) async throws -> Found? {
+        try await findRequestedCamera(
+            on: locals, preferred: preferred, budget: budget, excluding: excluding, isCurrent: isCurrent,
             clock: .live, probe: { host, local in await probe(host, local: local) }, open: open)
     }
 
@@ -246,19 +349,32 @@ enum LunaStationPath {
         probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult,
         open: (_ host: String) async throws -> Void
     ) async throws -> String? {
+        try await findRequestedCamera(
+            on: [local], preferred: preferred, budget: budget, excluding: excluding, isCurrent: isCurrent,
+            clock: clock, probe: probe, open: { host, _ in try await open(host) })?.host
+    }
+
+    /// ``findRequestedCamera(on:preferred:budget:excluding:isCurrent:clock:probe:open:)`` over
+    /// every network in `locals`.
+    static func findRequestedCamera(
+        on locals: [Address], preferred: String?, budget: Duration, excluding: Set<String>,
+        isCurrent: @escaping @MainActor () -> Bool, clock: HostClock,
+        probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult,
+        open: (_ host: String, _ local: String) async throws -> Void
+    ) async throws -> Found? {
         let deadline = clock.now() + budget
         var skipped = excluding
         repeat {
             guard
-                let host = try await findCamera(
-                    on: local, preferred: preferred, budget: deadline - clock.now(), excluding: skipped,
+                let found = try await findCamera(
+                    on: locals, preferred: preferred, budget: deadline - clock.now(), excluding: skipped,
                     isCurrent: isCurrent, clock: clock, probe: probe)
             else { return nil }
             do {
-                try await open(host)
-                return host
+                try await open(found.host, found.local)
+                return found
             } catch let failure as ConnectionFailure where failure.reason == .wrongCamera {
-                skipped.insert(host)
+                skipped.insert(found.host)
             }
         } while clock.now() < deadline
         return nil

@@ -356,6 +356,34 @@ private struct UnregisteredDJIService: Sendable {}
         withExtendedLifetime(adding) {}
     }
 
+    /// A computer pairs a camera it never saved straight onto its network: the record made from the
+    /// sighting is saved once the camera starts to move, never for a pairing that stopped before.
+    @Test func aNewCamerasSetupIsSavedOnlyOnceTheCameraMoves() async {
+        let dji = integration()
+        var stored: [SavedCamera] = []
+        dji.saveRecord = { stored.append($0) }
+        let sighted = SavedCamera(
+            id: "cam-9", integration: DJICameraSessionAdapter.integration, advertisedName: "OsmoPocket3-BBBB",
+            model: "Osmo Pocket 3")
+        let draft = RouteDraft(kind: .infrastructureNetwork, network: "studio", secret: "hunter22")
+        let missed = dji.connect(.addRoute(sighted, draft))
+        #expect(await eventually { port.connects.count == 1 })
+        port.onStage?(.awaitingApproval, nil)
+        port.finish(.failure(URLError(.timedOut)))
+        _ = await outcome(missed)
+        #expect(stored.isEmpty, "a pairing that never moved the camera saves nothing")
+
+        let moving = dji.connect(.addRoute(sighted, draft))
+        #expect(await eventually { port.connects.count == 2 })
+        #expect(stored.isEmpty)
+        port.onStage?(.joiningWiFi, nil)
+        #expect(stored.map(\.id) == ["cam-9"])
+        #expect(stored.last?.routes.map(\.kind) == [.infrastructureNetwork])
+        port.onStage?(.findingCamera, "Finding the camera on studio")
+        #expect(stored.count == 1, "saved once")
+        withExtendedLifetime(moving) {}
+    }
+
     @Test func stampingWithoutTheRouteKeepsTheLegacySetup() async {
         var apOnly = Self.saved
         apOnly.routes = [Self.ap]

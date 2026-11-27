@@ -1,0 +1,58 @@
+name: OpenCineDesktop
+options:
+  bundleIdPrefix: com.opencapture
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  OpenCine:
+    path: ..
+settings:
+  base:
+    DEVELOPMENT_TEAM: 4V4EGQ6LZA
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_VERSION: "6.0"
+    GENERATE_INFOPLIST_FILE: NO
+targets:
+  OpenCine:
+    type: application
+    platform: macOS
+    sources: [OpenCine]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.opencapture.opencine
+        INFOPLIST_FILE: OpenCine/Info.plist
+        CODE_SIGN_ENTITLEMENTS: OpenCine/OpenCine.entitlements
+    dependencies:
+      - package: OpenCine
+        product: OpenCineDesktopKit
+      - target: OpenCineCamera
+  OpenCineCamera:
+    type: system-extension
+    platform: macOS
+    sources: [OpenCineCamera]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.opencapture.opencine.camera
+        PRODUCT_NAME: $(PRODUCT_BUNDLE_IDENTIFIER)
+        INFOPLIST_FILE: OpenCineCamera/Info.plist
+        CODE_SIGN_ENTITLEMENTS: OpenCineCamera/OpenCineCamera.entitlements
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: OpenCine
+        product: OpenCineDesktopKit
+      - package: OpenCine
+        product: OpenCineVirtualCamera
+  simulated-producer:
+    type: tool
+    platform: macOS
+    sources: [Tools/simulated-producer]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.opencapture.opencine.simulated-producer
+        SWIFT_VERSION: "5.0"
+    dependencies:
+      - package: OpenCine
+        product: OpenCineDesktopKit
+      - package: OpenCine
+        product: OpenCineVirtualCamera

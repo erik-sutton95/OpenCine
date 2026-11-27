@@ -193,6 +193,7 @@ func WatcherRelayViewer.openWatcherBrowse() -> ()
 func WatcherRelayViewer.retryWatcherPasscode(_: Swift.String) -> ()
 func WatcherRelayViewer.startWatcherBrowse() -> ()
 func WatcherRelayViewer.stopWatching() -> ()
+init CameraNetworkPairingView(pairing: OpenCineAppKit.CameraNetworkPairing, model: OpenCineAppKit.CamerasModel, brand: OpenCineAppKit.StationNetworkBrand, services: StationNetworkServices)
 init DiagnosticCamera(family: Swift.String, model: Swift.String, phase: Swift.String)
 init DiagnosticCenterRuntime(host: DiagnosticCenterRuntime.Host)
 init DiagnosticCenterRuntime.Host(product: Swift.String, subsystem: Swift.String, journal: OpenCineAppKit.DiagnosticJournal, redact: (Swift.String) -> Swift.String, isSafeNetwork: (Swift.String) -> Swift.Bool, incidents: () -> OpenCineAppKit.FeedIncidentRuntime, localNetwork: () -> Swift.String, currentCamera: () -> DiagnosticCamera?)
@@ -300,6 +301,7 @@ static var MonitorLivePictureApp.feedUpscaler: OpenCineApple.MonitorUpscalerPref
 static var MonitorLivePictureApp.hdrDisplay: LiveHDRDisplay
 static var MonitorLivePictureApp.logSubsystem: Swift.String
 static var MonitorLivePictureApp.presentObserver: (() -> Swift.Void)?
+struct CameraNetworkPairingView: Sendable, View
 struct DiagnosticCamera: Equatable, Sendable
 struct DiagnosticCenterRuntime.Host
 struct HDRChromeHost: Sendable, UIViewRepresentable, View
@@ -331,6 +333,7 @@ typealias MonitorDeliveryCoordinator.Outcome = OpenCineAppKit.MonitorDeliveryBat
 typealias MonitorVideoBackdropRenderer.Operation = (CoreFoundation.CGSize, [MonitorVideoBackdropSource]) -> MonitorUI.MonitorBackdropSnapshot?
 typealias MonitorVideoBackdropSource = OpenCineApple.MonitorVideoBackdropSource
 typealias StationNetworkSetupView.Context = OpenCineAppKit.StationNetworkSetupContext
+var CameraNetworkPairingView.body: some SwiftUI.View
 var DiagnosticCamera.family: Swift.String
 var DiagnosticCamera.model: Swift.String
 var DiagnosticCamera.phase: Swift.String

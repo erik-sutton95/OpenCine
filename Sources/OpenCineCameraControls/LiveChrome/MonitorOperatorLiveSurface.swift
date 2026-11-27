@@ -415,6 +415,12 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @State private var lifecycle = MonitorInteractionLifecycle()
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
     @State private var compactTelemetryMinimumStatusTop: CGFloat = 0
+    @Environment(\.monitorDesktopCommands) private var desktopCommands
+    /// This monitor, as the desktop window knows it: a monitor leaving clears only its own actions.
+    @State private var desktopOwner = UUID()
+    /// Presses from a desktop window's record and display keys.
+    @State private var recordPress = 0
+    @State private var displayPress = 0
 
     init(host: Host, control: MonitorControlModel, session: MonitorOperatorSessionModel<Looks>,
         live: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
@@ -448,7 +454,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var assistSource: MonitorOperatorLiveAssistSource? { assists.scopes }
     private var stores: AssistPanelStores? { assists.scopes?.stores }
     private var editing: MonitorDisplayMode? { session.editingMode }
-    private var locked: Bool { session.locked }
+    /// A desktop window: the toolbar holds Settings and Media, a status row replaces the top strip.
+    private var desktop: Bool { layout.chrome == .desktop }
+    /// A desktop window has no interface lock.
+    private var locked: Bool { session.locked && !desktop }
     private var command: Bool { session.mode == .command }
     /// Command mode keeps no header, or storage and the link alone (`MonitorCommandHeader`): the
     /// dashboard's hero and tiles carry the record state, timecode and format (hardware pass 1.3).
@@ -462,7 +471,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     /// their drawers open from the top, beside them.
     private var cornerHoldsSetup: Bool {
         MonitorStatusCorner.holdsSetup(photo: photo, portrait: layout.portrait,
-            statusShown: mounts(.statusBar) && !command, valuesShown: mounts(.cameraValues))
+            statusShown: mounts(.statusBar) && !command && !desktop, valuesShown: mounts(.cameraValues))
     }
     private var cornerReadouts: [MonitorOperatorLiveReadout<Key, Section>] {
         facts.capture.cornerReadouts(holdsSetup: cornerHoldsSetup)
@@ -512,7 +521,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             presentation: .init(visible: !covered || editing != nil, interactive: editing == nil && session.interactive,
                 dimmed: cameraViews.motion?.dimmed == true, transientControlsHidden: motionCovering,
                 pictureWaiting: facts.picture.waiting && !command,
-                statusMounted: mounts(.statusBar) && commandHeader != .hidden, powerMounted: mounts(.batteries) && !usesCompactTelemetry,
+                statusMounted: desktop || (mounts(.statusBar) && commandHeader != .hidden),
+                powerMounted: !desktop && mounts(.batteries) && !usesCompactTelemetry,
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
                 panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
@@ -530,7 +540,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                     }
                 }
             },
-            status: { statusChrome.monitorHiddenWhileZoom(zoomRulerOpen) }, power: { powerChrome }, capture: { captureChrome },
+            status: { statusSlot }, power: { powerChrome }, capture: { captureChrome },
             system: { systemChrome }, tools: {
                 // Keep the palette's zIndex in the screen's chrome stack, above capture values.
                 // A layout container here would trap it below the later capture slot.
@@ -540,6 +550,13 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             cover: { EmptyView() }, recovery: { EmptyView() })
             .environment(host).environment(\.interfaceLocked, locked)
             .coordinateSpace(name: ChromeEditSpace.name).coordinateSpace(name: LiveCanvasSpace.name)
+            // The scroll wheel on the camera values in a Mac window; nothing on a phone or tablet.
+            // Not while the motion panel covers or dims the chrome, where clicks are blocked too.
+            .modifier(MonitorOperatorCaptureWheel(inputs: captureInputs, control: control, state: captureState,
+                enabled: presentationAdmitted && mounts(.cameraValues) && !command && !motionCovering
+                    && cameraViews.motion?.dimmed != true,
+                commandEnabled: !readOnly,
+                currentSource: { current(identity) }))
             .overlayPreferenceValue(ChromeEditSectionBoundsKey<Section>.self) { boxes in
                 if let editing {
                     ChromeEditBadges<Host>(mode: editing, boxes: boxes, viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height))
@@ -557,6 +574,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 }
             }
             .onChange(of: context, initial: true) { _, value in apply(lifecycle.update(value)) }
+            // No lock button in a desktop window, so nothing may stay locked there.
+            .onChange(of: session.locked, initial: true) { _, isLocked in
+                if desktop, isLocked { session.locked = false }
+            }
             // The interface lock also holds the screen's rotation (an inverted rig stays put).
             .monitorHoldsRotation(locked: locked)
             .onChange(of: identity) { _, _ in
@@ -570,7 +591,46 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .onChange(of: assist.sourceCurveKnown) { _, _ in
                 if let tool = assist.configureTool, !assist.offers(tool) { assist.configureTool = nil }
             }
-            .onDisappear { apply(lifecycle.close()); assist.liveCovered = false }
+            .onDisappear { apply(lifecycle.close()); assist.liveCovered = false; unregisterDesktopCommands() }
+            // Again on every appearance (a cover over the monitor took it off screen) and change.
+            .onAppear { registerDesktopCommands() }
+            .onChange(of: desktopRegistration) { _, _ in registerDesktopCommands() }
+            .onChange(of: recordPress) { _, _ in
+                // The capture button presses itself (`pressSignal`); an external recorder is asked here.
+                if !photo, let external = facts.record.external, admitted, recordEnabled { external.request() }
+            }
+            .onChange(of: displayPress) { _, _ in if exposed && !locked { session.cycle() } }
+    }
+
+    /// What the desktop window's toolbar and keys run changes with these.
+    private struct DesktopRegistration: Equatable {
+        let desktop: Bool
+        let identity: MonitorOperatorLiveIdentity
+        let borrowed: Bool
+        let photo: Bool
+        let showsTimecode: Bool
+    }
+    private var desktopRegistration: DesktopRegistration {
+        .init(desktop: desktop && desktopCommands != nil, identity: identity, borrowed: facts.borrowed,
+            photo: photo, showsTimecode: status.showsTimecode)
+    }
+    /// Registers Settings, Media, record, the display overlays and the take with a desktop window.
+    private func registerDesktopCommands() {
+        guard desktop, let sink = desktopCommands else { return }
+        let source = source, control = control
+        let recordPress = $recordPress, displayPress = $displayPress
+        let liveClock = status.liveClock, showsTimecode = status.showsTimecode
+        sink.register(desktopOwner, { source.settings() }, facts.borrowed ? nil : { source.media() },
+            photo ? nil : { recordPress.wrappedValue += 1 }, { displayPress.wrappedValue += 1 },
+            {
+                // Recording nil while the body's state is unknown: the toolbar then claims nothing.
+                let timecode = showsTimecode ? (liveClock?() ?? source.status().recording.timecode) : nil
+                return (control.isRecording, timecode)
+            })
+        sink.applyMonitorLook(media: photo ? .image : .film)
+    }
+    private func unregisterDesktopCommands() {
+        desktopCommands?.unregister(desktopOwner)
     }
 
     private func apply(_ transition: MonitorInteractionTransition) {
@@ -590,6 +650,68 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         }
     }
 
+    @ViewBuilder private var statusSlot: some View {
+        if desktop { desktopStatusRow } else { statusChrome.monitorHiddenWhileZoom(zoomRulerOpen) }
+    }
+    /// The desktop status row: the same values as the top strip and the gauges, in one row under
+    /// the title bar. Format, colour and mode chips open what their header readouts open.
+    private var desktopStatus: MonitorDesktopStatus {
+        let battery = facts.cameraBattery.map {
+            MonitorDesktopStatus.Battery(percent: $0.percent, bars: $0.bars, barCount: $0.barCount,
+                warning: $0.warning, exhausted: $0.exhausted, charging: $0.charging, externalPower: $0.externalPower)
+        }
+        return .from(fps: status.fps, signalBars: status.signalBars, battery: battery,
+            storage: status.storage?.value, format: status.format.map(\.value),
+            logProfile: status.color?.value, mode: status.mode?.value)
+    }
+    private func desktopReadout(_ kind: MonitorDesktopStatus.Chip.Kind) -> MonitorOperatorLiveReadout<Key, Section>? {
+        switch kind {
+        case .format: status.format.first
+        case .logProfile: status.color
+        case .mode: status.mode
+        case .link, .battery, .card: nil
+        }
+    }
+    private var desktopStatusRow: some View {
+        MonitorDesktopStatusRow(status: desktopStatus, audio: facts.audio?.levels) { chip in
+            if let readout = desktopReadout(chip.kind) {
+                MonitorOperatorCaptureHeaderReadout(inputs: captureInputs, control: control, state: captureState,
+                    source: captureSource, readout: readout, enabled: presentationAdmitted, commandEnabled: !readOnly,
+                    currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
+                    expandsHeight: false) { MonitorDesktopStatusChip(chip: chip) }
+                    .background(frameReader(readout.id))
+            } else {
+                MonitorDesktopStatusChip(chip: chip)
+            }
+        } leading: {
+            // A camera lent from Multiview returns there from the row's leading end.
+            if let returnToStage = source.returnToStage {
+                Button { if exposed { returnToStage() } } label: {
+                    MonitorIcon.layoutGrid.frame(width: 14, height: 14).foregroundStyle(MonitorTheme.text)
+                        .frame(width: 28, height: 22)
+                        .background(MonitorTheme.raised, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain).accessibilityLabel("Return to Multiview")
+                .accessibilityIdentifier("monitor.system.multicamReturn")
+            }
+        }
+        .frame(width: CGFloat(layout.status.width))
+    }
+    /// A desktop window's take: STBY or REC and the timecode at the picture's top trailing corner,
+    /// the phone's landscape readout. What the camera does not report is left out; command mode's
+    /// dashboard carries the take itself.
+    @ViewBuilder private var desktopTake: some View {
+        let take = layout.take
+        if mounts(.statusBar), !command, status.showsRecording || status.showsTimecode, take.width > 1 {
+            MonitorTakeReadout(layout: layout, status: status.recording, showsRecording: status.showsRecording,
+                showsTimecode: status.showsTimecode, clock: status.liveClock, omitsUnknown: true)
+                .padding(.trailing, FieldMonitorLayout.takeTrailingInset)
+                .frame(width: take.width, height: take.height, alignment: .trailing)
+                .position(x: take.midX, y: take.midY)
+                .allowsHitTesting(false)
+                .monitorHiddenWhileZoom(zoomRulerOpen)
+        }
+    }
     private var statusChrome: some View {
             let modeShown = !layout.portrait && layout.viewport.width >= 800 && !command ? status.mode : nil
             let plan = MonitorHeaderReadoutPolicy.plan(
@@ -818,7 +940,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         let index = modes.firstIndex(of: session.mode)
         return MonitorSystemControls(layout: layout, visibility: .init(lock: source.returnToStage != nil || mounts(.lockButton),
             settings: mounts(.railSettings), media: mounts(.railMedia), record: mounts(.railRecord), display: true)
-            .resolved(locked: locked, recording: control.isRecording, borrowed: facts.borrowed),
+            .resolved(locked: locked, recording: control.isRecording, borrowed: facts.borrowed, chrome: layout.chrome),
             capturePresented: transient, visible: !motionCovering, interactive: editing == nil,
             navigationHidden: captureState.preview != nil || (panel != nil && !layout.portrait)) {
             if let returnToStage = source.returnToStage {
@@ -839,7 +961,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 else if let external = facts.record.external { externalRecordButton(external) }
                 else { MonitorCaptureButton(control: control, diameter: layout.record.width, enabled: admitted, busy: !recordEnabled,
                     confirm: facts.record.confirm, haptics: host.hapticsEnabled,
-                    openMode: facts.record.openMode.map { action in { if admitted && recordEnabled { action() } } }) }
+                    openMode: facts.record.openMode.map { action in { if admitted && recordEnabled { action() } } },
+                    pressSignal: recordPress) }
             }.modifier(ChromeEditableModifier<Host>(section: .railRecord, mode: editing))
         } display: {
             MonitorDisplayButton(selectedIndex: index, modeCount: modes.count,
@@ -873,6 +996,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             if !command { instruments }
             MonitorOperatorLiveBanners<Host.Palette>(layout: live, camera: identity.camera,
                 recovering: facts.picture.reconnecting, note: source.note, showsStatus: mounts(.statusBar))
+            // A desktop window: the take across the picture's top, where a phone shows it.
+            if desktop { desktopTake }
             if let motion = cameraViews.motion { motion.controls.allowsHitTesting(admitted && !transient) }
             if command, let dashboard = cameraViews.dashboard {
                 let frame = MonitorCommandDashboardLayout.frame(layout: layout,

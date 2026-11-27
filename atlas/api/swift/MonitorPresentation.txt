@@ -8,6 +8,10 @@ case CameraPairingCheck.State.complete
 case CameraPairingCheck.State.waiting
 case CameraPairingInstruction.Icon.camera
 case CameraPairingInstruction.Icon.phone
+case CamerasPageHeaderButton.media
+case CamerasPageHeaderButton.multiview
+case CamerasPageHeaderButton.settings
+case CamerasPageHeaderButton.watchFeed
 case LiveStreamCameraStatus.live
 case LiveStreamCameraStatus.lost
 case LiveStreamCameraStatus.notResponding
@@ -79,8 +83,21 @@ case MonitorCapturePopupKind.compact
 case MonitorCapturePopupKind.details
 case MonitorCaptureReadoutGroup.ridden
 case MonitorCaptureReadoutGroup.setup
+case MonitorChromeStyle.desktop
+case MonitorChromeStyle.device
 case MonitorCommandHeader.hidden
 case MonitorCommandHeader.telemetry
+case MonitorDesktopStatus.Chip.Kind.battery
+case MonitorDesktopStatus.Chip.Kind.card
+case MonitorDesktopStatus.Chip.Kind.format
+case MonitorDesktopStatus.Chip.Kind.link
+case MonitorDesktopStatus.Chip.Kind.logProfile
+case MonitorDesktopStatus.Chip.Kind.mode
+case MonitorDesktopStatus.Tint.accent
+case MonitorDesktopStatus.Tint.depleted
+case MonitorDesktopStatus.Tint.good
+case MonitorDesktopStatus.Tint.low
+case MonitorDesktopStatus.Tint.plain
 case MonitorDeviceOrientation.landscapeLeft
 case MonitorDeviceOrientation.landscapeRight
 case MonitorDeviceOrientation.portrait
@@ -152,6 +169,13 @@ case MonitorMediaAction.selectAll
 case MonitorMediaAction.selection(Swift.Set<Swift.String>)
 case MonitorMediaAction.shareSelection
 case MonitorMediaAction.thumbnailSize(MonitorThumbnailSize)
+case MonitorMediaContextMenu.Command.delete
+case MonitorMediaContextMenu.Command.deselect
+case MonitorMediaContextMenu.Command.favorite
+case MonitorMediaContextMenu.Command.open
+case MonitorMediaContextMenu.Command.select
+case MonitorMediaContextMenu.Command.share
+case MonitorMediaContextMenu.Command.unfavorite
 case MonitorMediaDeliveryValue.Action.back
 case MonitorMediaDeliveryValue.Action.begin
 case MonitorMediaDeliveryValue.Action.close
@@ -203,6 +227,8 @@ case MonitorReadoutInteraction.Phase.idle
 case MonitorReadoutInteraction.Phase.pressing
 case MonitorScopeCanvasSlot.landscape
 case MonitorScopeCanvasSlot.portrait
+case MonitorScrollAccumulator.Device.mouse
+case MonitorScrollAccumulator.Device.trackpad
 case MonitorSettingsTab.assist
 case MonitorSettingsTab.controls
 case MonitorSettingsTab.display
@@ -236,6 +262,8 @@ case MonitorWatcherSetting.shutter
 case MonitorWatcherSetting.zoom
 case MonitorWaveformMode.luma
 case MonitorWaveformMode.rgb
+case MonitorWriteCoalescer.Action.wait(Swift.Double)
+case MonitorWriteCoalescer.Action.write(Value)
 case MonitorZoomAttachment.bottom
 case MonitorZoomAttachment.trailing
 case MonitorZoomRulerTick.Kind.major
@@ -264,6 +292,7 @@ case StartupLayoutProfile.wideLandscape
 enum CameraConnectStep.State: Equatable, Hashable, Sendable
 enum CameraPairingCheck.State: Equatable, Hashable, Sendable
 enum CameraPairingInstruction.Icon: Equatable, Hashable, Sendable
+enum CamerasPageHeaderButton: Equatable, Hashable, Sendable
 enum LiveStreamCameraStatus: CaseIterable, Equatable, Hashable, Sendable
 enum LiveStreamControlState.Tap: Equatable, Hashable, Sendable
 enum LiveStreamControlState.Tone: Equatable, Hashable, Sendable
@@ -287,9 +316,12 @@ enum MonitorCapturePopupChrome: Sendable
 enum MonitorCapturePopupEdge: Equatable, Hashable, Sendable
 enum MonitorCapturePopupKind: Equatable, Hashable, Sendable
 enum MonitorCaptureReadoutGroup: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
+enum MonitorChromeStyle: Equatable, Hashable, Sendable
 enum MonitorCommandDashboardLayout
 enum MonitorCommandGridLayout
 enum MonitorCommandHeader: Equatable, Hashable, Sendable
+enum MonitorDesktopStatus.Chip.Kind: Equatable, Hashable, Sendable
+enum MonitorDesktopStatus.Tint: Equatable, Hashable, Sendable
 enum MonitorDeviceOrientation: Equatable, Hashable, Sendable
 enum MonitorDialHaptic: Sendable
 enum MonitorDrumSelection
@@ -314,6 +346,7 @@ enum MonitorLinkHealthBand: Equatable, Hashable, Sendable
 enum MonitorLiveViewGeometrySpace: Equatable, Hashable, Sendable
 enum MonitorLiveViewViewport
 enum MonitorMediaAction: Equatable, Sendable
+enum MonitorMediaContextMenu.Command: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorMediaDeliveryValue.Action: Equatable, Sendable
 enum MonitorMediaDeliveryValue.Option: Equatable, Hashable, Sendable
 enum MonitorMediaDeliveryValue.Selection: Equatable, Hashable, Sendable
@@ -340,6 +373,7 @@ enum MonitorReadoutTypography: Sendable
 enum MonitorScopeCanvasSlot: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorScopeChromeAvoidance
 enum MonitorScopeSizing
+enum MonitorScrollAccumulator.Device: Equatable, Hashable, Sendable
 enum MonitorSettingsCardMetrics: Sendable
 enum MonitorSettingsTab: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorSideRailControlLayout
@@ -359,6 +393,7 @@ enum MonitorWatcherPasscodeRule
 enum MonitorWatcherPasscodeRule.Entry: Equatable, Sendable
 enum MonitorWatcherSetting: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorWaveformMode: CaseIterable, Decodable, Encodable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
+enum MonitorWriteCoalescer.Action<Value where Value : Swift.Equatable, Value : Swift.Sendable>: Equatable, Sendable
 enum MonitorZoomAttachment: Equatable, Hashable, Sendable
 enum MonitorZoomCaption
 enum MonitorZoomRulerTick.Kind: Equatable, Hashable, Sendable
@@ -373,6 +408,7 @@ enum StartupLayoutProfile: Equatable, Hashable, Sendable
 enum StartupReadyLiveViewPolicy
 extension OpenCineMedia.MonitorFrameEffects
 func FieldMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> MonitorRect
+func FieldMonitorLayout.contentSafeArea(_: MonitorSafeArea) -> MonitorSafeArea
 func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
 func FieldMonitorLayout.scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea
 func FieldMonitorLayout.scopeObstacles(_: MonitorScopeChrome, motionCluster: Swift.Bool) -> [MonitorRect]
@@ -410,6 +446,7 @@ func MonitorLayoutRegion.inset(_: MonitorEdgeInsets) -> MonitorLayoutRegion
 func MonitorLayoutRegion.insetBy(dx: Swift.Double, dy: Swift.Double) -> MonitorLayoutRegion
 func MonitorLayoutRegion.intersects(_: MonitorLayoutRegion) -> Swift.Bool
 func MonitorLayoutRegion.offsetBy(dx: Swift.Double, dy: Swift.Double) -> MonitorLayoutRegion
+func MonitorMediaContextMenu.entry(_: MonitorMediaContextMenu.Command) -> MonitorMediaContextMenu.Entry?
 func MonitorMediaDragSelection.move(to: Swift.Int) -> Swift.Bool
 func MonitorMediaMasonry.Frame.contains(x: Swift.Double, y: Swift.Double) -> Swift.Bool
 func MonitorMediaMasonry.index(atX: Swift.Double, y: Swift.Double) -> Swift.Int?
@@ -453,7 +490,11 @@ func MonitorReadoutOwnership.release(_: Foundation.UUID) -> ()
 func MonitorReadoutSnapshot.changedValue(at: Swift.Double) -> Swift.String?
 func MonitorReadoutSnapshot.position(translation: Swift.Double) -> Swift.Double
 func MonitorReadoutSnapshot.selection(at: Swift.Double) -> Swift.String
+func MonitorScrollAccumulator.index(from: Swift.Int, count: Swift.Int, dx: Swift.Double, dy: Swift.Double, device: MonitorScrollAccumulator.Device) -> Swift.Int?
+func MonitorScrollAccumulator.reset() -> ()
+func MonitorScrollAccumulator.steps(dx: Swift.Double, dy: Swift.Double, device: MonitorScrollAccumulator.Device) -> Swift.Int
 func MonitorSystemControlsVisibility.resolved(locked: Swift.Bool, recording: Swift.Bool?, borrowed: Swift.Bool) -> MonitorSystemControlsVisibility
+func MonitorSystemControlsVisibility.resolved(locked: Swift.Bool, recording: Swift.Bool?, borrowed: Swift.Bool, chrome: MonitorChromeStyle) -> MonitorSystemControlsVisibility
 func MonitorThumbnailSize.columns(tablet: Swift.Bool) -> Swift.Int
 func MonitorToolUsage.decay(to: Swift.Double) -> ()
 func MonitorToolUsage.rankedIDs(in: [Swift.String], seed: [Swift.String : Swift.Int], now: Swift.Double) -> [Swift.String]
@@ -467,6 +508,11 @@ func MonitorWatcherInteraction.update(context: MonitorWatcherContext, clean: Swi
 func MonitorWatcherPictureGeometry.belongs(to: MonitorWatcherTapSource) -> Swift.Bool
 func MonitorWatcherPresentation.admits(_: MonitorWatcherAction) -> Swift.Bool
 func MonitorWatcherTapSource.admits(_: MonitorWatcherTapSource) -> Swift.Bool
+func MonitorWheelDial.due(at: Swift.Double)<Key where Key : Swift.Hashable> -> [(key: Key, value: Swift.String)]
+func MonitorWheelDial.reset()<Key where Key : Swift.Hashable> -> ()
+func MonitorWheelDial.turn(key: Key, options: [Swift.String], reported: Swift.Int, dx: Swift.Double, dy: Swift.Double, device: MonitorScrollAccumulator.Device, at: Swift.Double)<Key where Key : Swift.Hashable> -> MonitorWheelDial<Key>.Turn?
+func MonitorWriteCoalescer.due(at: Swift.Double)<Value where Value : Swift.Equatable, Value : Swift.Sendable> -> Value?
+func MonitorWriteCoalescer.submit(_: Value, at: Swift.Double)<Value where Value : Swift.Equatable, Value : Swift.Sendable> -> MonitorWriteCoalescer<Value>.Action
 func MonitorZoomDrag.begin(at: Swift.Double) -> Swift.Bool
 func MonitorZoomDrag.cancel() -> Swift.Bool
 func MonitorZoomDrag.end() -> Swift.Bool
@@ -498,7 +544,7 @@ init CameraPairingPresentation(steps: [CameraPairingStep], currentStep: Swift.In
 init CameraPairingStep(_: Swift.String, _: Swift.String)
 init CameraPresentationDetail(_: Swift.String, _: Swift.String)
 init CameraSetupChip(id: Swift.String, title: Swift.String, isActive: Swift.Bool, canForget: Swift.Bool, kind: Swift.String?)
-init FieldMonitorLayout(width: Swift.Double, height: Swift.Double, safeArea: MonitorSafeArea, sourceAspect: Swift.Double, fill: Swift.Bool, showsValues: Swift.Bool, topControlInset: Swift.Double, joystick: MonitorJoystickSize, valueCount: Swift.Int?)
+init FieldMonitorLayout(width: Swift.Double, height: Swift.Double, safeArea: MonitorSafeArea, sourceAspect: Swift.Double, fill: Swift.Bool, showsValues: Swift.Bool, topControlInset: Swift.Double, joystick: MonitorJoystickSize, valueCount: Swift.Int?, chrome: MonitorChromeStyle)
 init LiveStreamControlState(phase: LiveStreamPhase, eligibility: LiveStreamEligibility, serviceName: Swift.String, elapsedSeconds: Swift.Int)
 init LiveStreamMonitorState(control: LiveStreamControlState, serviceName: Swift.String, quality: LiveStreamQuality?, encrypted: Swift.Bool, status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?, cameraStatus: LiveStreamCameraStatus?, networkChoices: [LiveStreamNetworkChoice])
 init LiveStreamNetworkChoice(id: Swift.String, name: Swift.String)
@@ -525,6 +571,9 @@ init MonitorCommandSection(title: Swift.String, cells: [MonitorCommandTile<Kind,
 init MonitorCommandTile(kind: Kind?, title: Swift.String, value: Swift.String, request: Request?, unavailableReason: Swift.String?, amber: Swift.Bool, muted: Swift.Bool)<Kind, Request where Kind : Swift.Hashable>
 init MonitorCompactTelemetryBudget(layout: FieldMonitorLayout, safeLeading: Swift.Double, safeTrailing: Swift.Double, storageWidth: Swift.Double, powerWidth: Swift.Double, linkWidth: Swift.Double, minimumTarget: Swift.Double, scale: Swift.Double, minimumLinkWidth: Swift.Double)
 init MonitorDeferredSelection()<Context where Context : Swift.Equatable>
+init MonitorDesktopStatus(link: MonitorDesktopStatus.Chip?, battery: MonitorDesktopStatus.Chip?, card: MonitorDesktopStatus.Chip?, format: MonitorDesktopStatus.Chip?, logProfile: MonitorDesktopStatus.Chip?, mode: MonitorDesktopStatus.Chip?)
+init MonitorDesktopStatus.Battery(percent: Swift.Int?, bars: Swift.Int?, barCount: Swift.Int, warning: Swift.Bool, exhausted: Swift.Bool, charging: Swift.Bool?, externalPower: Swift.Bool?)
+init MonitorDesktopStatus.Chip(kind: MonitorDesktopStatus.Chip.Kind, text: Swift.String?, bars: Swift.Int?, tint: MonitorDesktopStatus.Tint)
 init MonitorDrumDrag()<Identity where Identity : Swift.Equatable>
 init MonitorDrumMetrics(options: [Swift.String])
 init MonitorEdgeInsets(top: Swift.Double, leading: Swift.Double, bottom: Swift.Double, trailing: Swift.Double)
@@ -546,6 +595,7 @@ init MonitorLegalDocuments(wordmark: Swift.String, privacy: MonitorLegalDocument
 init MonitorLinkHealthBand(bars: Swift.Int)
 init MonitorLinkHealthBand(score: Swift.Int)
 init MonitorMediaCategory(id: Swift.String, title: Swift.String, count: Swift.Int)
+init MonitorMediaContextMenu(item: Swift.String, favorite: Swift.Bool, permissions: MonitorMediaPermissions, selecting: Swift.Bool, selectedIDs: Swift.Set<Swift.String>, selectedPermissions: (Swift.String) -> MonitorMediaPermissions?)
 init MonitorMediaDeliveryProgressDetailsValue(filename: Swift.String?, destination: Swift.String?)
 init MonitorMediaDeliveryProgressValue(status: Swift.String, batch: Swift.String?, fraction: Swift.Double, preparing: Swift.Bool, showsProgress: Swift.Bool?)
 init MonitorMediaDeliveryValue(step: MonitorMediaDeliveryValue.Step, title: Swift.String, selectionLabel: Swift.String, notices: [MonitorMediaDeliveryValue.Notice], destinations: [MonitorMediaDeliveryValue.Destination], upcoming: [Swift.String], service: MonitorMediaDeliveryValue.Service?, export: MonitorMediaDeliveryValue.Export?, footer: MonitorMediaDeliveryValue.Footer?, status: Swift.String?)
@@ -584,6 +634,7 @@ init MonitorScopeGuides(clip: Swift.Bool, crush: Swift.Bool, middle: Swift.Bool)
 init MonitorScopePoint(x: Swift.Double, y: Swift.Double)
 init MonitorScopeStoredCenter(xFraction: Swift.Double, yFraction: Swift.Double)
 init MonitorScreenPresentation(visible: Swift.Bool, interactive: Swift.Bool, dimmed: Swift.Bool, transientControlsHidden: Swift.Bool, pictureWaiting: Swift.Bool, statusMounted: Swift.Bool, powerMounted: Swift.Bool, captureMounted: Swift.Bool, captureHidden: Swift.Bool, captureInteractive: Swift.Bool, locked: Swift.Bool, popupInteractive: Swift.Bool, capturePresented: Swift.Bool, panelsRaised: Swift.Bool, recovering: Swift.Bool, statusInteractive: Swift.Bool)
+init MonitorScrollAccumulator(trackpadDistance: Swift.Double)
 init MonitorSideRailPlan(lockVisible: Swift.Bool, batteriesVisible: Swift.Bool, recordVisible: Swift.Bool, mediaVisible: Swift.Bool, settingsVisible: Swift.Bool, settingsReachable: Swift.Bool, interfaceLocked: Swift.Bool, recordingOrPending: Swift.Bool)
 init MonitorStatusPresentation(recording: Swift.Bool?, elapsedSeconds: Swift.Int?, timecode: Swift.String?, timecodePlaceholder: Swift.String)
 init MonitorSystemControlsVisibility(lock: Swift.Bool, settings: Swift.Bool, media: Swift.Bool, record: Swift.Bool, display: Swift.Bool)
@@ -605,6 +656,9 @@ init MonitorWatcherSettingValue(id: MonitorWatcherSetting, title: Swift.String, 
 init MonitorWatcherTapSource(source: Swift.String, revision: Swift.UInt64, canControl: Swift.Bool)
 init MonitorWaveformOptions(from: any Swift.Decoder) throws
 init MonitorWaveformOptions(mode: MonitorWaveformMode, brightness: Swift.Int, guides: MonitorScopeGuides, scale: Swift.Double, hasCustomScale: Swift.Bool, storedCenter: MonitorScopeStoredCenter?, storedCenterPortrait: MonitorScopeStoredCenter?)
+init MonitorWheelDial(interval: Swift.Double, hold: Swift.Double, trackpadDistance: Swift.Double)<Key where Key : Swift.Hashable>
+init MonitorWheelDial.Turn(key: Key, value: Swift.String, write: Swift.Bool, due: Swift.Double?)<Key where Key : Swift.Hashable>
+init MonitorWriteCoalescer(interval: Swift.Double)<Value where Value : Swift.Equatable, Value : Swift.Sendable>
 init MonitorZoomDrag()
 init MonitorZoomPresets(slots: [Swift.Double?], rampSeconds: Swift.Double)
 init MonitorZoomPresets(stored: Swift.String?)
@@ -619,6 +673,7 @@ init ReviewLiveValues(iso: Swift.Int, shutterDenominator: Swift.Int, whiteBalanc
 init StartupSideCutoutAvoidance(leading: Swift.Double, trailing: Swift.Double)
 let FieldMonitorLayout.aspectToggle: MonitorRect
 let FieldMonitorLayout.assists: MonitorRect
+let FieldMonitorLayout.chrome: MonitorChromeStyle
 let FieldMonitorLayout.display: MonitorRect
 let FieldMonitorLayout.fillsPicture: Swift.Bool
 let FieldMonitorLayout.focusReset: MonitorRect
@@ -635,6 +690,7 @@ let FieldMonitorLayout.status: MonitorRect
 let FieldMonitorLayout.stick: MonitorRect
 let FieldMonitorLayout.system: MonitorRect
 let FieldMonitorLayout.tablet: Swift.Bool
+let FieldMonitorLayout.take: MonitorRect
 let FieldMonitorLayout.telemetry: MonitorRect
 let FieldMonitorLayout.values: MonitorRect
 let FieldMonitorLayout.viewport: MonitorRect
@@ -725,6 +781,11 @@ let MonitorLegalDocuments.wordmark: Swift.String
 let MonitorMediaCategory.count: Swift.Int
 let MonitorMediaCategory.id: Swift.String
 let MonitorMediaCategory.title: Swift.String
+let MonitorMediaContextMenu.Entry.actions: [MonitorMediaAction]
+let MonitorMediaContextMenu.Entry.command: MonitorMediaContextMenu.Command
+let MonitorMediaContextMenu.Entry.enabled: Swift.Bool
+let MonitorMediaContextMenu.Entry.title: Swift.String
+let MonitorMediaContextMenu.entries: [MonitorMediaContextMenu.Entry]
 let MonitorMediaDeliveryProgressDetailsValue.destination: Swift.String?
 let MonitorMediaDeliveryProgressDetailsValue.filename: Swift.String?
 let MonitorMediaDeliveryProgressValue.batch: Swift.String?
@@ -881,6 +942,13 @@ let MonitorWatcherSettingValue.title: Swift.String
 let MonitorWatcherTapSource.canControl: Swift.Bool
 let MonitorWatcherTapSource.revision: Swift.UInt64
 let MonitorWatcherTapSource.source: Swift.String
+let MonitorWheelDial.Turn.due: Swift.Double?
+let MonitorWheelDial.Turn.key: Key
+let MonitorWheelDial.Turn.value: Swift.String
+let MonitorWheelDial.Turn.write: Swift.Bool
+let MonitorWheelDial.hold: Swift.Double
+let MonitorWheelDial.interval: Swift.Double
+let MonitorWriteCoalescer.interval: Swift.Double
 let MonitorZoomRulerScale.maximum: Swift.Double
 let MonitorZoomRulerScale.minimum: Swift.Double
 let MonitorZoomRulerTick.kind: MonitorZoomRulerTick.Kind
@@ -917,6 +985,7 @@ let StartupContentLayout.showSecondaryVisuals: Swift.Bool
 let StartupSideCutoutAvoidance.leading: Swift.Double
 let StartupSideCutoutAvoidance.trailing: Swift.Double
 protocol MonitorScopePanelOptions<Self : Swift.Decodable, Self : Swift.Encodable, Self : Swift.Equatable, Self : Swift.Sendable>: Decodable, Encodable, Equatable, Sendable
+static func CamerasPageHeaderButton.buttons(chrome: MonitorChromeStyle, multiview: Swift.Bool, watchFeed: Swift.Bool) -> [CamerasPageHeaderButton]
 static func FieldMonitorLayout.aeUnlock(focusReset: MonitorRect, leadingColumnMaxX: Swift.Double, pictureMidX: Swift.Double, portrait: Swift.Bool) -> MonitorRect
 static func FieldMonitorLayout.appBadge(status: MonitorRect, reserved: [MonitorRect]) -> MonitorRect
 static func FieldMonitorLayout.headTrack(stick: MonitorRect, zoom: MonitorRect) -> MonitorRect
@@ -976,6 +1045,7 @@ static func MonitorCommandGridLayout.tileCenter(index: Swift.Int, tileWidth: Cor
 static func MonitorCommandGridLayout.valueFontSize(rowHeight: CoreGraphics.CGFloat) -> CoreGraphics.CGFloat
 static func MonitorCompactTelemetryBudget.linkWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?, linkX: Swift.Double) -> Swift.Double?
 static func MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?, linkWidth: Swift.Double, minimumTarget: Swift.Double) -> Swift.Double?
+static func MonitorDesktopStatus.from(fps: Swift.String?, signalBars: Swift.Int?, battery: MonitorDesktopStatus.Battery?, storage: Swift.String?, format: [Swift.String], logProfile: Swift.String?, mode: Swift.String?) -> MonitorDesktopStatus
 static func MonitorDialHaptic.isMajor(_: Swift.String) -> Swift.Bool
 static func MonitorDialHaptic.shouldTick(previous: Swift.Double, next: Swift.Double, majors: [Swift.Double]) -> Swift.Bool
 static func MonitorDialHaptic.shouldTick(previous: Swift.String?, next: Swift.String, optionCount: Swift.Int) -> Swift.Bool
@@ -1039,6 +1109,7 @@ static func MonitorStatusCorner.holdsSetup(photo: Swift.Bool, portrait: Swift.Bo
 static func MonitorStatusCorner.split(_: [Value], holdsSetup: Swift.Bool, group: (Value) -> MonitorCaptureReadoutGroup)<Value> -> (strip: [Value], corner: [Value])
 static func MonitorStatusCorner.width(of: [Swift.Double], spacing: Swift.Double) -> Swift.Double
 static func MonitorStatusCorner.widths(natural: [Swift.Double], floors: [Swift.Double], available: Swift.Double, spacing: Swift.Double) -> [Swift.Double]
+static func MonitorStatusPresentation.reportedClock(_: Swift.String?) -> Swift.String?
 static func MonitorStorageReadoutFormat.alternatives(percent: Swift.String?, recordingTime: Swift.String?, photo: Swift.Bool) -> [Swift.String]
 static func MonitorStorageReadoutFormat.capacity(gigabytes: Swift.Int64?) -> Swift.String
 static func MonitorStorageReadoutFormat.nextForm(after: Swift.Int, count: Swift.Int) -> Swift.Int
@@ -1074,9 +1145,12 @@ static func StartupReadyLiveViewPolicy.canEnterMonitor(isConnected: Swift.Bool, 
 static func StartupSideCutoutAvoidance.resolve(for: MonitorEdgeInsets) -> StartupSideCutoutAvoidance
 static let FieldMonitorLayout.appBadgeGap: Swift.Double
 static let FieldMonitorLayout.appBadgeWidth: Swift.Double
+static let FieldMonitorLayout.desktopStatusRowHeight: Swift.Double
 static let FieldMonitorLayout.minimumTapTarget: Swift.Double
 static let FieldMonitorLayout.settingsMediaGap: Swift.Double
 static let FieldMonitorLayout.stickSide: Swift.Double
+static let FieldMonitorLayout.takeBandHeight: Swift.Double
+static let FieldMonitorLayout.takeTrailingInset: Swift.Double
 static let FieldMonitorLayout.valueRowPitch: Swift.Double
 static let GimbalCluster.gap: Swift.Double
 static let GimbalCluster.inset: Swift.Double
@@ -1384,6 +1458,9 @@ struct MonitorCommandTile<Kind, Request where Kind : Swift.Hashable>: Equatable,
 struct MonitorCompactTelemetryBudget: Equatable, Sendable
 struct MonitorDeferredSelection.Request<Context where Context : Swift.Equatable>: Equatable
 struct MonitorDeferredSelection<Context where Context : Swift.Equatable>
+struct MonitorDesktopStatus.Battery: Equatable, Sendable
+struct MonitorDesktopStatus.Chip: Equatable, Identifiable, Sendable
+struct MonitorDesktopStatus: Equatable, Sendable
 struct MonitorDrumDrag<Identity where Identity : Swift.Equatable>: Equatable, Sendable
 struct MonitorDrumMetrics: Equatable, Sendable
 struct MonitorEdgeInsets: Equatable, Sendable
@@ -1401,6 +1478,8 @@ struct MonitorLaunchLayout: Equatable, Sendable
 struct MonitorLayoutRegion: Equatable, Sendable
 struct MonitorLegalDocuments: Equatable, Sendable
 struct MonitorMediaCategory: Equatable, Identifiable, Sendable
+struct MonitorMediaContextMenu.Entry: Equatable, Identifiable, Sendable
+struct MonitorMediaContextMenu: Equatable, Sendable
 struct MonitorMediaDeliveryProgressDetailsValue: Equatable, Sendable
 struct MonitorMediaDeliveryProgressValue: Equatable, Sendable
 struct MonitorMediaDeliveryValue.Choice: Equatable, Identifiable, Sendable
@@ -1439,6 +1518,7 @@ struct MonitorScopeGuides: Decodable, Encodable, Equatable, Sendable
 struct MonitorScopePoint: Equatable, Sendable
 struct MonitorScopeStoredCenter: Decodable, Encodable, Equatable, Sendable
 struct MonitorScreenPresentation: Equatable, Sendable
+struct MonitorScrollAccumulator: Equatable, Sendable
 struct MonitorSideRailPlan: Equatable, Sendable
 struct MonitorStatusPresentation: Equatable, Sendable
 struct MonitorSystemControlsVisibility: Equatable, Sendable
@@ -1458,6 +1538,9 @@ struct MonitorWatcherReading: Equatable, Identifiable, Sendable
 struct MonitorWatcherSettingValue: Equatable, Identifiable, Sendable
 struct MonitorWatcherTapSource: Equatable, Hashable, Sendable
 struct MonitorWaveformOptions: Decodable, Encodable, Equatable, MonitorScopePanelOptions, Sendable
+struct MonitorWheelDial.Turn<Key where Key : Swift.Hashable>: Equatable, Sendable
+struct MonitorWheelDial<Key where Key : Swift.Hashable>: Sendable
+struct MonitorWriteCoalescer<Value where Value : Swift.Equatable, Value : Swift.Sendable>: Sendable
 struct MonitorZoomDrag: Equatable, Sendable
 struct MonitorZoomPresets: Equatable, Sendable
 struct MonitorZoomRulerScale: Equatable, Sendable
@@ -1471,6 +1554,7 @@ struct StartupContentLayout: Equatable, Sendable
 struct StartupSideCutoutAvoidance: Equatable, Sendable
 subscript MonitorLegalDocuments(_: MonitorLegalPage) -> MonitorLegalDocument
 typealias MonitorCapabilities = OpenCineCore.MonitorLayoutCapabilities
+typealias MonitorHostDevice = OpenCineCore.HostDevice
 typealias MonitorPreviewAdmission = OpenCineMedia.MonitorPreviewAdmission
 typealias MonitorTimecodeFormat = OpenCineMedia.MonitorTimecodeFormat
 var CameraConnectFailure.Action.id: Swift.String
@@ -1537,6 +1621,7 @@ var CameraSetupChip.kind: Swift.String?
 var CameraSetupChip.title: Swift.String
 var FieldMonitorLayout.aeUnlock: MonitorRect
 var FieldMonitorLayout.appBadge: MonitorRect
+var FieldMonitorLayout.liveStreamDeck: MonitorRect
 var FieldMonitorLayout.recordingReadoutTrailingInset: Swift.Double
 var GimbalCluster.bounds: MonitorLayoutRegion
 var GimbalCluster.controls: MonitorLayoutRegion
@@ -1681,6 +1766,25 @@ var MonitorCommandTile.title: Swift.String
 var MonitorCommandTile.unavailableReason: Swift.String?
 var MonitorCommandTile.value: Swift.String
 var MonitorDeferredSelection.pending: MonitorDeferredSelection<Context>.Request?
+var MonitorDesktopStatus.Battery.barCount: Swift.Int
+var MonitorDesktopStatus.Battery.bars: Swift.Int?
+var MonitorDesktopStatus.Battery.charging: Swift.Bool?
+var MonitorDesktopStatus.Battery.exhausted: Swift.Bool
+var MonitorDesktopStatus.Battery.externalPower: Swift.Bool?
+var MonitorDesktopStatus.Battery.percent: Swift.Int?
+var MonitorDesktopStatus.Battery.warning: Swift.Bool
+var MonitorDesktopStatus.Chip.bars: Swift.Int?
+var MonitorDesktopStatus.Chip.id: MonitorDesktopStatus.Chip.Kind
+var MonitorDesktopStatus.Chip.kind: MonitorDesktopStatus.Chip.Kind
+var MonitorDesktopStatus.Chip.text: Swift.String?
+var MonitorDesktopStatus.Chip.tint: MonitorDesktopStatus.Tint
+var MonitorDesktopStatus.battery: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.card: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.chips: [MonitorDesktopStatus.Chip]
+var MonitorDesktopStatus.format: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.link: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.logProfile: MonitorDesktopStatus.Chip?
+var MonitorDesktopStatus.mode: MonitorDesktopStatus.Chip?
 var MonitorDrumDrag.origin: Swift.String?
 var MonitorEditingSession.isEditing: Swift.Bool
 var MonitorFalseColorReferencePositions.landscape: MonitorFalseColorReferencePositions.Center?
@@ -1722,6 +1826,9 @@ var MonitorLegalPage.id: Swift.String
 var MonitorLegalPage.title: Swift.String
 var MonitorLevelStyle.id: Swift.String
 var MonitorLevelStyle.title: Swift.String
+var MonitorMediaContextMenu.Entry.destructive: Swift.Bool
+var MonitorMediaContextMenu.Entry.id: MonitorMediaContextMenu.Command
+var MonitorMediaContextMenu.commands: [MonitorMediaContextMenu.Command]
 var MonitorMediaDeliveryValue.Service.selectedProjectLabel: Swift.String?
 var MonitorMediaDragSelection.selectedIDs: Swift.Set<Swift.String>
 var MonitorMediaItem.stateLabel: Swift.String
@@ -1803,6 +1910,7 @@ var MonitorScreenPresentation.statusInteractive: Swift.Bool
 var MonitorScreenPresentation.statusMounted: Swift.Bool
 var MonitorScreenPresentation.transientControlsHidden: Swift.Bool
 var MonitorScreenPresentation.visible: Swift.Bool
+var MonitorScrollAccumulator.trackpadDistance: Swift.Double
 var MonitorSettingsTab.id: Swift.String
 var MonitorSettingsTab.pill: Swift.String
 var MonitorSettingsTab.rail: Swift.String
@@ -1858,6 +1966,9 @@ var MonitorWaveformOptions.mode: MonitorWaveformMode
 var MonitorWaveformOptions.scale: Swift.Double
 var MonitorWaveformOptions.storedCenter: MonitorScopeStoredCenter?
 var MonitorWaveformOptions.storedCenterPortrait: MonitorScopeStoredCenter?
+var MonitorWheelDial.nextDue: Swift.Double?
+var MonitorWriteCoalescer.dueAt: Swift.Double?
+var MonitorWriteCoalescer.pending: Value?
 var MonitorZoomDrag.anchor: Swift.Double?
 var MonitorZoomPresets.rampSeconds: Swift.Double
 var MonitorZoomPresets.slots: [Swift.Double?]

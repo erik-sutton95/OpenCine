@@ -67,7 +67,11 @@
         /// `isSupportedHardware` so a build that lets a phone try can still explain why it found
         /// nothing.
         @MainActor public static var isDocumentedHardware: Bool {
-            UIDevice.current.userInterfaceIdiom == .pad
+            #if targetEnvironment(macCatalyst)
+                true
+            #else
+                UIDevice.current.userInterfaceIdiom == .pad
+            #endif
         }
 
         /// Delivered frames, newest-wins.
@@ -89,6 +93,9 @@
         /// must never be the main thread.
         private let captureQueue: DispatchQueue
         private var currentDevice: AVCaptureDevice?
+        private let selectedDeviceID: String?
+        private let requestedMode: UVCCaptureMode?
+        private var deviceObservers: [NSObjectProtocol] = []
         private var isRunning = false
         private let identityLock = NSLock()
         private var deviceIdentity: CaptureDeviceIdentity?
@@ -113,12 +120,24 @@
         private func setDeviceIdentity(_ identity: CaptureDeviceIdentity?) {
             identityLock.withLock { deviceIdentity = identity }
         }
+        private var wantsCapture = false
+        @MainActor private var stopped = false
+        public struct Statistics: Equatable, Sendable {
+            public var captured: UInt64 = 0
+            public var captureDropped: UInt64 = 0
+            public var consumerReplaced: UInt64 = 0
+        }
+        private let counters = OSAllocatedUnfairLock(initialState: Statistics())
+        public var statistics: Statistics { counters.withLock { $0 } }
 
         /// `queueLabel` and `logSubsystem` name the capture queue and log category after the app.
         public init(
             stream: StreamID = StreamID(), queueLabel: String, logSubsystem: String,
+            selectedDeviceID: String? = nil, requestedMode: UVCCaptureMode? = nil,
             onStateChange: @escaping @MainActor (UVCVideoSourceState) -> Void
         ) {
+            self.selectedDeviceID = selectedDeviceID
+            self.requestedMode = requestedMode
             (self.frames, self.framesContinuation) = AsyncStream.makeStream(
                 of: DecodedFrameLease.self, bufferingPolicy: .bufferingNewest(1))
             self.fence = DecodedFrameFence(stream: stream)
@@ -133,6 +152,7 @@
         /// Requests permission if needed, then brings the session up around whatever is attached.
         @MainActor
         public func start() async {
+            guard !stopped else { return }
             guard Self.isSupportedHardware else {
                 onStateChange(.unsupportedDevice)
                 return
@@ -141,10 +161,14 @@
                 onStateChange(.permissionDenied)
                 return
             }
+            guard !stopped else { return }
             observeDeviceChanges()
             Self.logDiscoverableVideoDevices()
             onStateChange(.starting)
-            captureQueue.async { [weak self] in self?.configureAndRun() }
+            captureQueue.async { [weak self] in
+                self?.wantsCapture = true
+                self?.configureAndRun()
+            }
         }
 
         /// Debug-only census of every video device the system will admit to.
@@ -174,12 +198,15 @@
         /// Tears the session down. Safe to call more than once, and safe to call before `start`.
         @MainActor
         public func stop() {
-            NotificationCenter.default.removeObserver(self)
+            stopped = true
+            deviceObservers.forEach(NotificationCenter.default.removeObserver)
+            deviceObservers.removeAll()
             // Ends the consumer's `for await`, so a stopped source can never keep a loop alive.
             framesContinuation.finish()
             fence.advance()
             captureQueue.async { [weak self] in
                 guard let self else { return }
+                self.wantsCapture = false
                 if self.session.isRunning { self.session.stopRunning() }
                 self.isRunning = false
                 self.session.inputs.forEach(self.session.removeInput)
@@ -201,16 +228,19 @@
         @MainActor
         private func observeDeviceChanges() {
             let center = NotificationCenter.default
-            center.removeObserver(self)
+            deviceObservers.forEach(center.removeObserver)
+            deviceObservers.removeAll()
             for name in [
-                AVCaptureDevice.wasConnectedNotification, AVCaptureDevice.wasDisconnectedNotification,
+                AVCaptureDevice.wasConnectedNotification,
+                AVCaptureDevice.wasDisconnectedNotification,
             ] {
-                center.addObserver(
+                let observer = center.addObserver(
                     forName: name, object: nil, queue: .main
                 ) { [weak self] _ in
                     guard let self else { return }
                     self.captureQueue.async { self.configureAndRun() }
                 }
+                deviceObservers.append(observer)
             }
         }
 
@@ -218,7 +248,8 @@
 
         private func configureAndRun() {
             dispatchPrecondition(condition: .onQueue(captureQueue))
-            guard let device = Self.attachedCaptureDevice() else {
+            guard wantsCapture else { return }
+            guard let device = Self.attachedCaptureDevice(selectedID: selectedDeviceID) else {
                 if isRunning || currentDevice != nil {
                     if session.isRunning { session.stopRunning() }
                     session.inputs.forEach(session.removeInput)
@@ -250,7 +281,8 @@
             } catch {
                 publish(
                     .failed(
-                        reason: "The capture device couldn't be opened: \(error.localizedDescription)"
+                        reason:
+                            "The capture device couldn't be opened: \(error.localizedDescription)"
                     ))
                 return
             }
@@ -303,7 +335,31 @@
                 connection.videoScaleAndCropFactor = 1
             }
 
-            let selected = selectBestFormat(on: device)
+            let selected: String?
+            if let requestedMode {
+                guard
+                    let format = device.formats.first(where: { format in
+                        let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+                        return format.videoSupportedFrameRateRanges.contains { range in
+                            requestedMode.matches(
+                                width: Int(size.width), height: Int(size.height),
+                                minimumRate: range.minFrameRate, maximumRate: range.maxFrameRate)
+                        }
+                    })
+                else { throw UVCError.unsupportedMode }
+                try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
+                device.activeFormat = format
+                let duration = CMTime(
+                    seconds: 1 / requestedMode.framesPerSecond,
+                    preferredTimescale: 600_000)
+                device.activeVideoMinFrameDuration = duration
+                device.activeVideoMaxFrameDuration = duration
+                selected =
+                    "\(requestedMode.width)x\(requestedMode.height) @\(requestedMode.framesPerSecond)"
+            } else {
+                selected = selectBestFormat(on: device)
+            }
             // YCbCr, never RGB: the matrix is ours to decide (see `CaptureFrameColorimetry`). Set
             // after the format choice, so the request follows the active format's own layout.
             let deviceFormat = CMFormatDescriptionGetMediaSubType(
@@ -365,7 +421,9 @@
             #if DEBUG
                 let census =
                     ranked
-                    .map { "\($0.dimensions.width)x\($0.dimensions.height)@\(Int($0.fps.rounded()))" }
+                    .map {
+                        "\($0.dimensions.width)x\($0.dimensions.height)@\(Int($0.fps.rounded()))"
+                    }
                     .joined(separator: ", ")
                 print("UVC formats (\(ranked.count)): \(census)")
             #endif
@@ -420,10 +478,38 @@
             return attachedCaptureDevice()?.localizedName
         }
 
-        private static func attachedCaptureDevice() -> AVCaptureDevice? {
-            AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.external], mediaType: .video, position: .unspecified
-            ).devices.first
+        /// External devices visible to the operator, without opening capture or requesting access.
+        @MainActor public static var availableCaptureDevices: [(id: String, name: String)] {
+            discoverCaptureDevices().map { ($0.uniqueID, $0.localizedName) }
+        }
+
+        private static func discoverCaptureDevices() -> [AVCaptureDevice] {
+            #if targetEnvironment(macCatalyst)
+                // Mac Catalyst files every camera as built in and answers `.external` with nothing.
+                AVCaptureDevice.DiscoverySession(
+                    deviceTypes: [.external, .builtInWideAngleCamera], mediaType: .video,
+                    position: .unspecified
+                ).devices.filter { UVCCaptureSelection.isCaptureHardware(modelID: $0.modelID) }
+            #else
+                AVCaptureDevice.DiscoverySession(
+                    deviceTypes: [.external], mediaType: .video, position: .unspecified
+                ).devices
+            #endif
+        }
+
+        private static func attachedCaptureDevice(selectedID: String? = nil) -> AVCaptureDevice? {
+            let devices = discoverCaptureDevices()
+            #if targetEnvironment(macCatalyst)
+                let explicit = true
+            #else
+                let explicit = false
+            #endif
+            guard
+                let id = UVCCaptureSelection.deviceID(
+                    available: devices.map(\.uniqueID),
+                    preferred: selectedID, requiresExplicitSelection: explicit)
+            else { return nil }
+            return devices.first { $0.uniqueID == id }
         }
 
         private func publish(_ state: UVCVideoSourceState) {
@@ -433,11 +519,14 @@
         private enum UVCError: LocalizedError {
             case cannotAddInput
             case cannotAddOutput
+            case unsupportedMode
 
             var errorDescription: String? {
                 switch self {
                 case .cannotAddInput: "the session refused the capture device"
                 case .cannotAddOutput: "the session refused the video output"
+                case .unsupportedMode:
+                    "the capture device does not support the selected resolution and frame rate"
                 }
             }
         }
@@ -506,6 +595,13 @@
 
         public func captureOutput(
             _ output: AVCaptureOutput,
+            didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection
+        ) {
+            counters.withLock { $0.captureDropped &+= 1 }
+        }
+
+        public func captureOutput(
+            _ output: AVCaptureOutput,
             didOutput sampleBuffer: CMSampleBuffer,
             from connection: AVCaptureConnection
         ) {
@@ -516,7 +612,57 @@
             // The capture clock is the host clock; nanoseconds of the frame's presentation time.
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             let timeNs = pts.isNumeric ? Int64(CMTimeGetSeconds(pts) * 1_000_000_000) : 0
-            framesContinuation.yield(fence.lease(pixelBuffer, timeNs: timeNs))
+            counters.withLock { $0.captured &+= 1 }
+            #if targetEnvironment(macCatalyst)
+                // Desktop diagnostic only; the iPad capture path is unchanged.
+                if CaptureFrameLevel.isBlack(pixelBuffer) {
+                    log.notice("capture frame black at \(timeNs, privacy: .public)")
+                }
+            #endif
+            let lease = fence.lease(pixelBuffer, timeNs: timeNs)
+            switch framesContinuation.yield(lease) {
+            case .dropped(let previous):
+                previous.release()
+                counters.withLock { $0.consumerReplaced &+= 1 }
+            case .terminated: lease.release()
+            case .enqueued: break
+            @unknown default: lease.release()
+            }
+        }
+    }
+
+    /// Whether a captured frame is black throughout, read from a sparse grid of its luma. A
+    /// diagnostic for picture dropouts upstream of the app: the camera's HDMI or the capture device.
+    enum CaptureFrameLevel {
+        static func isBlack(_ frame: CVPixelBuffer) -> Bool {
+            CVPixelBufferLockBaseAddress(frame, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(frame, .readOnly) }
+            let format = CVPixelBufferGetPixelFormatType(frame)
+            let planar = CVPixelBufferIsPlanar(frame)
+            guard
+                let base = planar
+                    ? CVPixelBufferGetBaseAddressOfPlane(frame, 0)
+                    : CVPixelBufferGetBaseAddress(frame)
+            else { return false }
+            let bytes = base.assumingMemoryBound(to: UInt8.self)
+            let width = planar ? CVPixelBufferGetWidthOfPlane(frame, 0) : CVPixelBufferGetWidth(frame)
+            let height = planar ? CVPixelBufferGetHeightOfPlane(frame, 0) : CVPixelBufferGetHeight(frame)
+            let row = planar ? CVPixelBufferGetBytesPerRowOfPlane(frame, 0) : CVPixelBufferGetBytesPerRow(frame)
+            // The grid needs at least one sample per step: a smaller frame is not judged.
+            guard width >= 16, height >= 8 else { return false }
+            // Luma byte per pixel: the plane itself, every other byte of 2vuy/yuvs, or green of BGRA.
+            let (step, offset): (Int, Int) =
+                planar ? (1, 0)
+                : format == kCVPixelFormatType_422YpCbCr8 ? (2, 1)
+                : format == kCVPixelFormatType_422YpCbCr8_yuvs ? (2, 0) : (4, 1)
+            var brightest = 0
+            for y in stride(from: height / 16, to: height, by: height / 8) {
+                for x in stride(from: width / 32, to: width, by: width / 16) {
+                    brightest = max(brightest, Int(bytes[y * row + x * step + offset]))
+                }
+            }
+            return brightest < 24
         }
     }
 #endif
+

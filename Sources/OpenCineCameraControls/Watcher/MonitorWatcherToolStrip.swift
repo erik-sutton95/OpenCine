@@ -109,6 +109,8 @@ private struct WatcherStripButton<Looks: MonitorLookProvider>: View {
             guard tool.hasConfiguration, !locked else { return }
             if pressing { buildup = beginBuildup() } else { cancelBuildup() }
         }
+        // A Mac's right-click opens the tool's options, as the long press does.
+        .monitorSecondaryClick(enabled: !locked) { onPresent(tool) }
         .onDisappear { cancelBuildup() }
         .onChange(of: locked) { _, nowLocked in if nowLocked { cancelBuildup() } }
     }

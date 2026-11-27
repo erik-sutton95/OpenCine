@@ -7,7 +7,8 @@ import os
 
 /// This phone's side of the shared station network on iOS: its IPv4 address and netmask on Wi-Fi
 /// (`en0`) or on the Personal Hotspot it hosts (`bridge*`/`ap*`), and joining a router's Wi-Fi
-/// with `NEHotspotConfiguration`. The Multiview coordinator and the integrations use it through
+/// with `NEHotspotConfiguration`. On a Mac the network side is any private Wi-Fi or Ethernet
+/// interface (`HostInterfacePick`) and nothing is joined. The Multiview coordinator and the integrations use it through
 /// Core's `StationHostPath`. Android twin: `SharedWiFiPath` in `:platform`.
 @MainActor
 public final class SharedWiFiPath: StationHostPath {
@@ -22,49 +23,66 @@ public final class SharedWiFiPath: StationHostPath {
     }
 
     public func address(hotspot: Bool) -> String? {
-        Self.interfaceAddress(netmask: false, hotspot: hotspot)
+        #if targetEnvironment(macCatalyst)
+            if !hotspot { return Self.stationInterfaces().first?.ipv4 }
+        #endif
+        return Self.interfaceAddress(netmask: false, hotspot: hotspot)
     }
 
     public func netmask(hotspot: Bool) -> String? {
-        Self.interfaceAddress(netmask: true, hotspot: hotspot)
+        #if targetEnvironment(macCatalyst)
+            if !hotspot { return Self.stationInterfaces().first?.netmask }
+        #endif
+        return Self.interfaceAddress(netmask: true, hotspot: hotspot)
     }
 
+    /// On a Mac: any Wi-Fi or Ethernet interface on a private network, the default route's first.
+    private static func stationInterfaces() -> [HostInterface] {
+        HostInterfacePick.stationInterfaces(HostInterfaces.current())
+    }
+
+    /// Puts this phone on `network` and returns its address there. A Mac never joins: it is on
+    /// the network already (Wi-Fi or Ethernet), so its address there, or nil off any network.
     public func join(_ network: StationNetwork) async throws -> String? {
         if network.hotspot { return address(hotspot: true) }
-        let ssid = network.ssid
-        if await Self.currentSSID() != ssid {
-            let config =
-                network.password.isEmpty
-                ? NEHotspotConfiguration(ssid: ssid)
-                : NEHotspotConfiguration(ssid: ssid, passphrase: network.password, isWEP: false)
-            config.joinOnce = false
-            try await withCheckedThrowingContinuation {
-                (continuation: CheckedContinuation<Void, Error>) in
-                NEHotspotConfigurationManager.shared.apply(config) { error in
-                    if let error,
-                        (error as NSError).code
-                            != NEHotspotConfigurationError.alreadyAssociated.rawValue
-                    {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume()
+        #if targetEnvironment(macCatalyst)
+            return address(hotspot: false)
+        #else
+            let ssid = network.ssid
+            if await Self.currentSSID() != ssid {
+                let config =
+                    network.password.isEmpty
+                    ? NEHotspotConfiguration(ssid: ssid)
+                    : NEHotspotConfiguration(ssid: ssid, passphrase: network.password, isWEP: false)
+                config.joinOnce = false
+                try await withCheckedThrowingContinuation {
+                    (continuation: CheckedContinuation<Void, Error>) in
+                    NEHotspotConfigurationManager.shared.apply(config) { error in
+                        if let error,
+                            (error as NSError).code
+                                != NEHotspotConfigurationError.alreadyAssociated.rawValue
+                        {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume()
+                        }
                     }
                 }
             }
-        }
-        // iOS applied the join. It names the network only with location permission (or for
-        // networks this app configured); an unnamed Wi-Fi address is accepted too.
-        func joined() async -> Bool {
-            let current = await Self.currentSSID()
-            return current == ssid || (current == nil && address(hotspot: false) != nil)
-        }
-        let deadline = Date().addingTimeInterval(12)
-        while Date() < deadline {
-            if await joined(), address(hotspot: false) != nil { break }
-            try await Task.sleep(for: .milliseconds(200))
-        }
-        guard await joined() else { return nil }
-        return address(hotspot: false)
+            // iOS applied the join. It names the network only with location permission (or for
+            // networks this app configured); an unnamed Wi-Fi address is accepted too.
+            func joined() async -> Bool {
+                let current = await Self.currentSSID()
+                return current == ssid || (current == nil && address(hotspot: false) != nil)
+            }
+            let deadline = Date().addingTimeInterval(12)
+            while Date() < deadline {
+                if await joined(), address(hotspot: false) != nil { break }
+                try await Task.sleep(for: .milliseconds(200))
+            }
+            guard await joined() else { return nil }
+            return address(hotspot: false)
+        #endif
     }
 
     /// This phone's Wi-Fi name, nil when iOS withholds it (no permission, the simulator), does not

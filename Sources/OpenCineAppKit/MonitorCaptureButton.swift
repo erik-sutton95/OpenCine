@@ -16,6 +16,7 @@
         private let haptics: Bool
         private let takePhoto: () -> Void
         private let openMode: (() -> Void)?
+        private let pressSignal: Int
         @State private var confirmOpen = false
         @State private var approved: MonitorControlModel.RecordEditor?
 
@@ -24,7 +25,8 @@
             photo: Bool = false,
             confirm: Bool = false, haptics: Bool = true,
             takePhoto: @escaping () -> Void = {},
-            openMode: (() -> Void)? = nil
+            openMode: (() -> Void)? = nil,
+            pressSignal: Int = 0
         ) {
             self.control = control
             self.diameter = diameter
@@ -35,6 +37,7 @@
             self.haptics = haptics
             self.takePhoto = takePhoto
             self.openMode = openMode
+            self.pressSignal = pressSignal
         }
 
         private var editor: MonitorControlModel.RecordEditor? {
@@ -60,6 +63,8 @@
                             }
                         }
                 )
+                // A Mac's right-click runs the hold action (the capture mode, where offered).
+                .monitorSecondaryClick { perform(policy.holdAction) }
                 .opacity(policy.opacity)
                 .sensoryFeedback(
                     haptics ? .impact(weight: .heavy) : .impact(flexibility: .solid, intensity: 0),
@@ -83,6 +88,9 @@
                     if let approved, !control.canCommitRecord(from: approved) { retireApproval() }
                 }
                 .onChange(of: enabled) { _, _ in retireApproval() }
+                // A press from elsewhere (a desktop window's record key) presses this button,
+                // with its admission and its confirmation.
+                .onChange(of: pressSignal) { _, _ in press() }
                 .onChange(of: photo) { _, _ in retireApproval() }
                 .accessibilityHidden(false)
                 .accessibilityLabel(policy.accessibilityLabel)

@@ -30,11 +30,23 @@ private struct MonitorShellSceneActivity: ViewModifier {
     let shell: ShellModel
     @Environment(\.scenePhase) private var phase
 
+    /// A desktop dock's camera module keeps running in a hidden tab: it is still feeding its webcam
+    /// input, so losing focus is not the suspension this activity tracks on a phone.
+    private var staysActive: Bool {
+        #if targetEnvironment(macCatalyst)
+            ProcessInfo.processInfo.environment["OPENCINE_MODULE_ID"] != nil
+        #else
+            false
+        #endif
+    }
+
     func body(content: Content) -> some View {
         content
-            .onChange(of: phase, initial: true) { _, phase in shell.setSceneActive(phase == .active) }
+            .onChange(of: phase, initial: true) { _, phase in
+                shell.setSceneActive(staysActive || phase == .active)
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-                shell.setSceneActive(false)
+                shell.setSceneActive(staysActive)
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                 shell.setSceneActive(true)

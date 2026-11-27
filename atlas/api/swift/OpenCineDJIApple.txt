@@ -625,8 +625,10 @@ static func DjiAppleMediaLiveReturn.run(timeout: Swift.Duration, timing: DjiAppl
 static func DjiAppleMultiviewProvisioner.scanNetworks(_: DjiAppleSighting, host: DjiAppleTransportHost, rounds: Swift.Int, beforeStationChange: () throws -> Swift.Void, onRestored: (Swift.Bool) -> Swift.Void, onFound: (Swift.String) -> Swift.Void) throws -> ()
 static func DjiAppleRecoveryEpisode.deadline(for: DjiAppleRecoveryEpisode.Stage?) -> Swift.Duration
 static func DjiAppleSharedWiFiPath.address(hotspot: Swift.Bool) -> Swift.String?
+static func DjiAppleSharedWiFiPath.address(hotspot: Swift.Bool, toward: Swift.String?) -> Swift.String?
 static func DjiAppleSharedWiFiPath.joinHost(ssid: Swift.String, password: Swift.String) throws -> Swift.String?
 static func DjiAppleSharedWiFiPath.netmask(hotspot: Swift.Bool) -> Swift.String?
+static func DjiAppleSharedWiFiPath.stationInterfaces() -> [OpenCineCore.HostInterface]
 static func DjiAppleSharedWiFiPath.validAddress(_: Swift.String) -> Swift.Bool
 static func DjiAppleWiFiJoiner.JoinError.rejectsCredentials(_: any Swift.Error) -> Swift.Bool
 static func DjiAppleWiFiJoiner.awaitCallback(timeout: Swift.Duration, register: (@escaping (Swift.Result<Value, any Swift.Error>) -> Swift.Void) -> Swift.Void)<Value where Value : Swift.Sendable> throws -> Value
@@ -706,6 +708,7 @@ struct DjiAppleRecoveryEpisode.Context: Sendable
 struct DjiAppleRecoveryEpisode.NativeActions: Sendable
 struct DjiAppleRecoveryPicture
 struct DjiAppleSettingsBinding: Equatable, Sendable
+struct DjiAppleSharedWiFiPath.HostNotOnNetwork: Equatable, Error, LocalizedError, Sendable
 struct DjiAppleSighting: Identifiable, Sendable
 struct DjiAppleSubjectTracking.Authority
 struct DjiAppleSubjectTracking.Snapshot: Equatable, Sendable
@@ -979,6 +982,7 @@ var DjiAppleRecoveryPicture.lastPresentedAt: Foundation.TimeInterval?
 var DjiAppleSessionHeartbeat.endpoint: DjiAppleHeartbeatEndpoint
 var DjiAppleSettingsBinding.controlGeneration: Swift.Int
 var DjiAppleSettingsBinding.endpoint: Swift.ObjectIdentifier?
+var DjiAppleSharedWiFiPath.HostNotOnNetwork.errorDescription: Swift.String?
 var DjiAppleSubjectTracking.Snapshot.active: Swift.Bool
 var DjiAppleSubjectTracking.Snapshot.searchBox: OpenCineCameraVocabulary.TrackingBox?
 var DjiAppleSubjectTracking.Snapshot.subjectBox: OpenCineCameraVocabulary.TrackingBox?

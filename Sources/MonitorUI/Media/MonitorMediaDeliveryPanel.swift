@@ -25,7 +25,7 @@
                 card(scrolling: false)
                 card(scrolling: true).frame(maxHeight: maxCardHeight)
             }
-            .frame(maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? 620 : 460)
+            .frame(maxWidth: MonitorHostDevice.current.isLargeScreen ? 620 : 460)
             .frame(maxHeight: maxCardHeight, alignment: .bottom)
         }
         private func card(scrolling: Bool) -> some View {
@@ -118,7 +118,7 @@
                 LazyVGrid(
                     columns: Array(
                         repeating: GridItem(.flexible(), spacing: 7),
-                        count: UIDevice.current.userInterfaceIdiom == .pad ? 2 : 1), spacing: 7
+                        count: MonitorHostDevice.current.isLargeScreen ? 2 : 1), spacing: 7
                 ) {
                     ForEach(value.destinations) { destination in
                         Button {
@@ -243,7 +243,7 @@
                                 MonitorIcon.chevronsUpDown.frame(width: 11, height: 11)
                                     .foregroundStyle(MonitorTheme.muted)
                             }.padding(.horizontal, 12).padding(.vertical, 10).deliveryOptionPlate()
-                        }.buttonStyle(MonitorSettingsButtonStyle())
+                        }.buttonStyle(MonitorSettingsButtonStyle()).monitorMenuStyle()
                         if allowsCreation {
                             Button {
                                 action(.createProject)

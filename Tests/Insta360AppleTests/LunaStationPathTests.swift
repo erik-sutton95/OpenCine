@@ -167,6 +167,37 @@ import Testing
             Issue.record("unexpected \(error)")
         }
     }
+
+    // A computer may be on more than one network (Wi-Fi and Ethernet): the search covers each,
+    // the default route's first, and dials every host from the interface on its subnet.
+
+    private static let ethernet = LunaStationPath.Address(address: "10.0.0.5", netmask: "255.255.255.0")
+
+    @Test @MainActor func everyInterfaceIsSearchedFromItsOwnAddress() async throws {
+        let dialled = PairRecorder()
+        var opened: [String] = []
+        let found = try await LunaStationPath.findRequestedCamera(
+            on: [Self.router, Self.ethernet], preferred: nil, budget: .seconds(60), excluding: [],
+            isCurrent: { true }, clock: ManualHostClock().clock,
+            probe: { host, local in
+                await dialled.add(host, local)
+                return host == "10.0.0.77" ? .camera : .absent
+            },
+            open: { host, local in opened.append("\(host) from \(local)") })
+        #expect(found == .init(host: "10.0.0.77", local: "10.0.0.5"))
+        #expect(opened == ["10.0.0.77 from 10.0.0.5"])
+        #expect(await dialled.mismatched.isEmpty, "each host is dialled from the interface on its subnet")
+        #expect(await dialled.first?.hasPrefix("192.168.1.") == true, "the first network listed is searched first")
+    }
+}
+
+private actor PairRecorder {
+    private(set) var first: String?
+    private(set) var mismatched: [String] = []
+    func add(_ host: String, _ local: String) {
+        if first == nil { first = host }
+        if host.split(separator: ".").prefix(3) != local.split(separator: ".").prefix(3) { mismatched.append(host) }
+    }
 }
 
 private actor Recorder {

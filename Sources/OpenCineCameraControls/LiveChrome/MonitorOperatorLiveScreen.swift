@@ -100,11 +100,13 @@
     public struct MonitorOperatorLiveScreen<Host: MonitorLiveScreenHost>: View {
         @Environment(Host.self) private var model
         @Environment(\.monitorWindowGeometry) private var windowGeometry
+        @Environment(\.monitorChromeStyle) private var chromeStyle
         @State private var interaction = MonitorOperatorInteraction()
         @State private var gamepad = GimbalGamepadBridge<Host>()
         @State private var headphones = Host.headphoneBridge()
         @State private var orientationObserver = InterfaceOrientationObserver()
-        private var interfaceLocked: Bool { model.operatorSession.locked }
+        /// A desktop window has no interface lock.
+        private var interfaceLocked: Bool { model.operatorSession.locked && chromeStyle != .desktop }
         private var showsBottomBars: Bool {
             model.chromeSectionMounts(.toolBar) || model.chromeSectionMounts(.cameraValues)
         }
@@ -159,7 +161,8 @@
                     showsValues: model.chromeSectionMounts(.cameraValues), showsBottomBars: showsBottomBars,
                     topControlInset: windowGeometry.topControlInset, joystick: model.virtualJoystickSize,
                     valueCount: MonitorOperatorCaptureInputs<CaptureSheet, MonitorDisplayChrome.Section,
-                        MonitorOperatorLegacyCaptureIdentity>.captureSheetHost(model).valueCount)
+                        MonitorOperatorLegacyCaptureIdentity>.captureSheetHost(model).valueCount,
+                    chrome: chromeStyle)
                 Color.clear.ignoresSafeArea().overlay(alignment: .topLeading) {
                     canvas(layout).frame(width: layout.viewport.width, height: layout.viewport.height, alignment: .topLeading)
                 }
@@ -230,8 +233,8 @@
             .overlay(alignment: .topLeading) {
                 if let stream = model.liveStream {
                     let anchor = LiveStreamOverlayPlacement.anchor(
-                        status: MonitorRect(x: layout.topDeck.minX, y: layout.topDeck.minY,
-                            width: layout.topDeck.width, height: layout.topDeck.height),
+                        status: MonitorRect(x: layout.liveStreamDeck.minX, y: layout.liveStreamDeck.minY,
+                            width: layout.liveStreamDeck.width, height: layout.liveStreamDeck.height),
                         viewportWidth: layout.viewport.width, safeTop: layout.safeArea.top,
                         safeTrailing: layout.safeArea.trailing)
                     LiveStreamMonitorOverlay(coordinator: stream, hidden: interaction.zoomVisible)

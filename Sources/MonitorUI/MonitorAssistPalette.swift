@@ -382,6 +382,8 @@
                                 }
                             }
                     )
+                    // A Mac's right-click shows the tool's options, as the long press does.
+                    .monitorSecondaryClick { showOptions(tool) }
                 } else {
                     // Bare tools have no hold action. A native button keeps a
                     // slow press as one toggle on release, with drag cancellation.

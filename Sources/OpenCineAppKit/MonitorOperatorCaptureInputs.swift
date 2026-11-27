@@ -232,11 +232,23 @@ extension MonitorOperatorCaptureInputs where NativeIdentity == Never {
     public var frames: [Key: CGRect] = [:]
     public var ownership = MonitorReadoutOwnership()
     public private(set) var preview: MonitorOperatorCapturePreview<Key, NativeIdentity>?
+    /// The readout the pointer rests on in a Mac window, as hover finds it: hover follows what is
+    /// on top, so a panel or dialog over the strip takes the pointer (`MonitorOperatorCaptureWheel`).
+    var wheelHover: Key?
+    /// The pointer rests on the open camera panel.
+    @ObservationIgnored var pointerOnPanel = false
+    @ObservationIgnored var wheelDial = MonitorWheelDial<Key>()
+    @ObservationIgnored var wheelFlush: Task<Void, Never>?
     @ObservationIgnored private var notifyPreview: ((Key, MonitorOperatorCapturePreview<Key, NativeIdentity>?) -> Void)?
     public init() {}
 
     public func retire() {
         clearPreview()
+        wheelFlush?.cancel()
+        wheelFlush = nil
+        wheelDial.reset()
+        wheelHover = nil
+        pointerOnPanel = false
         if let owner = ownership.owner { ownership.release(owner) }
         // Invalidate an already released pointer's deferred command as well.
         let retirement = UUID()
@@ -421,6 +433,45 @@ private struct CaptureStripReadout<Key: Hashable, Section: Hashable,
         }.modifier(CaptureReadoutGesture(inputs: inputs, readout: readout, control: control,
             state: state, source: source, enabled: enabled, commandEnabled: commandEnabled,
             currentSource: currentSource))
+            .modifier(CaptureWheelHover(inputs: inputs, readout: readout, state: state, enabled: enabled,
+                commandEnabled: commandEnabled, currentSource: currentSource))
+    }
+}
+
+/// In a Mac window: notes the readout the pointer rests on, and marks it while the scroll wheel
+/// would change it. Nothing on an iPhone or iPad.
+private struct CaptureWheelHover<Key: Hashable, Section: Hashable,
+    NativeIdentity: Hashable & Sendable>: ViewModifier {
+    let inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>
+    let readout: MonitorOperatorLiveReadout<Key, Section>
+    let state: MonitorOperatorCaptureState<Key, NativeIdentity>
+    let enabled: Bool
+    let commandEnabled: Bool
+    let currentSource: () -> Bool
+
+    func body(content: Content) -> some View {
+        #if targetEnvironment(macCatalyst)
+            content
+                .onHover { inside in
+                    if inside { state.wheelHover = readout.id }
+                    else if state.wheelHover == readout.id { state.wheelHover = nil }
+                }
+                .background {
+                    if state.wheelHover == readout.id, inputs.wheelTarget(state: state, enabled: enabled,
+                        commandEnabled: commandEnabled, currentSource: currentSource) == readout.id {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(MonitorTheme.accent.opacity(0.5), lineWidth: 1)
+                            }
+                            .padding(.horizontal, -6).padding(.vertical, -3)
+                            .allowsHitTesting(false).accessibilityHidden(true)
+                    }
+                }
+        #else
+            content
+        #endif
     }
 }
 
@@ -637,6 +688,7 @@ public struct MonitorOperatorCapturePopup<Key: Hashable, Section: Hashable,
                                 content(panel.key, place).disabled(!commandEnabled || !currentSource())
                             }
                         }.id(panel.key)
+                        .modifier(CapturePanelWheelHover(state: state))
                         // One container per open camera panel, as the operator reaches it: UI tests
                         // and assistive technology find the panel itself, not only its rows.
                         .accessibilityElement(children: .contain)
@@ -665,6 +717,22 @@ public struct MonitorOperatorCapturePopup<Key: Hashable, Section: Hashable,
                 inputs.dismiss()
                 if let next, next != panel.key { inputs.open(next) }
             }
+    }
+}
+
+/// In a Mac window: notes whether the pointer rests on the open camera panel, where the scroll
+/// wheel steps the panel's setting. Nothing on an iPhone or iPad.
+private struct CapturePanelWheelHover<Key: Hashable, NativeIdentity: Hashable & Sendable>: ViewModifier {
+    let state: MonitorOperatorCaptureState<Key, NativeIdentity>
+
+    func body(content: Content) -> some View {
+        #if targetEnvironment(macCatalyst)
+            content
+                .onHover { state.pointerOnPanel = $0 }
+                .onDisappear { state.pointerOnPanel = false }
+        #else
+            content
+        #endif
     }
 }
 

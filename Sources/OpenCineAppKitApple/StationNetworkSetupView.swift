@@ -77,6 +77,24 @@
             close: @escaping () -> Void, path: [Page] = [], lockedNetwork: StationNetwork? = nil,
             complete: @escaping () -> Void
         ) {
+            self.init(
+                host: .current, context: context, brand: brand, services: services,
+                cameraSSIDs: cameraSSIDs, scan: scan, cameraScansNetworks: cameraScansNetworks,
+                save: save, errorMessage: errorMessage, close: close, path: path,
+                lockedNetwork: lockedNetwork, complete: complete)
+        }
+
+        /// `host` is the device the page is for (tests lay a computer's page out on any device).
+        init(
+            host: HostDevice, context: Context, brand: StationNetworkBrand,
+            services: StationNetworkServices, cameraSSIDs: Set<String> = [],
+            scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?,
+            cameraScansNetworks: Bool = true,
+            save: @escaping @MainActor (StationNetwork) async -> Bool, errorMessage: String? = nil,
+            close: @escaping () -> Void, path: [Page] = [], lockedNetwork: StationNetwork? = nil,
+            complete: @escaping () -> Void
+        ) {
+            self.host = host
             self.context = context
             self.brand = brand
             self.services = services
@@ -88,8 +106,20 @@
             self.close = close
             self.lockedNetwork = lockedNetwork
             self.complete = complete
-            _path = State(initialValue: path)
+            _path = State(initialValue: Self.startPath(path, root: Self.root(host)))
+            _computerScanning = State(initialValue: host.isComputer && scan == nil)
         }
+
+        /// The pages pushed over the root at open. A caller asking for the root page itself (Add
+        /// setup's Wi-Fi on a computer, whose root is the network list) gets it once, so Back
+        /// never shows the same page again.
+        static func startPath(_ path: [Page], root: Page) -> [Page] {
+            path.first == root ? Array(path.dropFirst()) : path
+        }
+
+        /// A computer opens on the network list: it offers no camera Wi-Fi or hotspot
+        /// (`StationSetupRoute.offered`), and the network is one it is on.
+        static func root(_ host: HostDevice) -> Page { host.isComputer ? .networks : .choose }
 
         @State private var working = false
         /// The password page's network and its security (nil: unknown).
@@ -110,6 +140,10 @@
         @State private var reveal = false
         @State private var hotspotActive = false
         @State private var locationHint: String?
+        @State private var locationDenied = false
+        /// The networks a computer sees itself, when no camera scans for it.
+        @State private var computerNearby: [String] = []
+        @State private var computerScanning = false
         @Environment(\.openURL) private var openURL
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.monitorWindowGeometry) private var windowGeometry
@@ -122,6 +156,16 @@
                     $0.userInterfaceStyle = .dark
                     $0.userInterfaceLevel = .elevated
                 }))
+
+        /// The device the words name.
+        let host: HostDevice
+        private var mac: Bool { host.isComputer }
+        private var root: Page { Self.root(host) }
+        private var networkHint: String {
+            mac
+                ? "The camera joins this network. This Mac must be on it too, by Wi-Fi or Ethernet."
+                : context.networkHint
+        }
 
         private var warning: Color { MonitorTheme.linkHealthColor(.watch) }
         private var good: Color { MonitorTheme.linkHealthColor(.stable) }
@@ -177,7 +221,7 @@
 
         private var wizard: some View {
             NavigationStack(path: $path) {
-                screen(.choose)
+                screen(root)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel", action: dismiss)
@@ -205,6 +249,12 @@
                 configured = ssids.filter { !isCameraNetwork($0) }
             }
             .task {
+                // A computer with no camera to scan through lists what its own Wi-Fi sees.
+                guard mac, scan == nil else { return }
+                computerNearby = await ComputerWiFi.nearbyNetworks()
+                computerScanning = false
+            }
+            .task {
                 while !Task.isCancelled {
                     hotspotActive = services.hotspotActive()
                     do { try await Task.sleep(for: .seconds(1)) } catch { return }
@@ -225,7 +275,7 @@
                 // Keyboard avoidance must not switch layout branches and destroy the focused field.
                 let size = windowGeometry.size == .zero ? proxy.size : windowGeometry.size
                 let landscape = size.width > size.height
-                if landscape, page != .choose {
+                if landscape, page != .choose, !(page == .networks && listLayout.oneColumn) {
                     // Landscape: the leading column stays put; only the form column scrolls,
                     // with Connect / Other network pinned beneath it.
                     HStack(alignment: .top, spacing: page == .networks ? 16 : 14) {
@@ -313,15 +363,21 @@
         }
 
         private func refreshCurrentNetwork() async {
-            let current = await services.currentSSID()
+            var current = await services.currentSSID()
+            // A Mac's system never names its Wi-Fi to the app; CoreWLAN does.
+            if current == nil, mac { current = await ComputerWiFi.currentNetwork() }
             currentSSID = current.flatMap { isCameraNetwork($0) ? nil : $0 }
             let access = StationWiFiNameAccess.shared
+            locationDenied = access.denied
             if current != nil || access.undecided {
                 locationHint = nil
             } else if access.denied {
-                locationHint = "Allow Location to show this iPhone’s Wi-Fi"
+                locationHint = mac ? "Allow Location to show this Mac’s Wi-Fi" : "Allow Location to show this iPhone’s Wi-Fi"
             } else if access.approximateOnly {
-                locationHint = "Turn on Precise Location to show this iPhone’s Wi-Fi"
+                locationHint =
+                    mac
+                    ? "Turn on Precise Location to show this Mac’s Wi-Fi"
+                    : "Turn on Precise Location to show this iPhone’s Wi-Fi"
             } else {
                 locationHint = nil
             }
@@ -441,18 +497,54 @@
 
         private func choosePage(_ landscape: Bool) -> some View {
             AddSetupChooserView(
-                chooser: StationNetworkSetupRules.setupChooser(context: context),
+                chooser: StationNetworkSetupRules.setupChooser(
+                    context: context, routes: StationSetupRoute.offered(on: host, hostRoutes: StationSetupRoute.stationNetworks)),
                 onSelect: { open($0.kind == .infrastructureNetwork ? .networks : .hotspot) },
                 horizontal: landscape)
         }
 
         // MARK: Wi-Fi
 
-        /// Saved in this app's Keychain (with passwords) or configured by this app before.
-        private var savedNetworks: [String] {
-            var names = services.savedNetworks().filter { !$0.hotspot }.map(\.ssid)
-            for name in configured where !names.contains(name) { names.append(name) }
-            return names.filter { $0 != currentSSID && !isCameraNetwork($0) }
+        /// The page's network rows: this device's network, the ones saved in this app's Keychain
+        /// (with passwords) or configured by this app before, then the ones found nearby.
+        private var rows: StationNetworkRows {
+            StationNetworkRows(
+                current: currentSSID,
+                saved: services.savedNetworks().filter { !$0.hotspot }.map(\.ssid) + configured,
+                nearby: computerList ? computerNearby : found, isCameraNetwork: isCameraNetwork)
+        }
+
+        private var computerList: Bool { mac && scan == nil }
+
+        /// What the network list shows now (`ListLayout`).
+        private var listLayout: ListLayout {
+            ListLayout(
+                host: host, cameraScans: scan != nil, rows: rows,
+                computerScanning: computerScanning, locationDenied: locationDenied)
+        }
+
+        private var emptyList: Bool { listLayout.otherNetworkLeads }
+
+        /// The decisions of the network list, kept apart from its rendering.
+        struct ListLayout: Equatable {
+            let host: HostDevice
+            /// A camera scans for networks (it is nearby over Bluetooth).
+            let cameraScans: Bool
+            let rows: StationNetworkRows
+            /// A computer's own Wi-Fi is still looking for networks.
+            let computerScanning: Bool
+            let locationDenied: Bool
+
+            /// A computer with no camera to scan through: one column (no camera Nearby column
+            /// beside it), with what its own Wi-Fi sees as Nearby.
+            var oneColumn: Bool { host.isComputer && !cameraScans }
+            /// Nothing to choose from and nothing still looking: Other network is the list's first
+            /// row, full width, and `emptyNote` says why. Otherwise it is pinned under the list.
+            var otherNetworkLeads: Bool { oneColumn && rows.isEmpty && !computerScanning }
+            var emptyNote: String? {
+                otherNetworkLeads
+                    ? StationNetworkRows.emptyNote(host: host, locationDenied: locationDenied) : nil
+            }
         }
 
         private func hasPassword(_ ssid: String) -> Bool {
@@ -460,13 +552,18 @@
         }
 
         private func networksPage(_ landscape: Bool, _ side: Side?) -> some View {
+            let rows = rows
+            let savedNetworks = rows.saved
             let known = VStack(alignment: .leading, spacing: 7) {
-                if !landscape {
+                if side == nil {
                     Text("Choose the network").font(MonitorTheme.font(22, weight: .semibold))
-                    hint(context.networkHint).padding(.bottom, 8)
+                    hint(networkHint).padding(.bottom, 8)
                 }
-                if let currentSSID {
-                    sectionHeader("THIS IPHONE IS ON")
+                if emptyList {
+                    group { otherNetworkButton }
+                    emptyNote.padding(.top, 4)
+                } else if let currentSSID = rows.current {
+                    sectionHeader(mac ? "THIS MAC IS ON" : "THIS IPHONE IS ON")
                         .accessibilityIdentifier("\(context.prefix).currentHeader")
                     group {
                         networkRow(
@@ -476,7 +573,7 @@
                             detailColor: good)
                     }
                 } else if let locationHint {
-                    sectionHeader("THIS IPHONE IS ON")
+                    sectionHeader(mac ? "THIS MAC IS ON" : "THIS IPHONE IS ON")
                         .accessibilityIdentifier("\(context.prefix).currentHeader")
                     group {
                         Button {
@@ -486,8 +583,9 @@
                         } label: {
                             row(
                                 icon: .wifi, title: locationHint,
-                                detail:
-                                    "Settings › \(brand.appName) › Location. Only the Wi-Fi name is used."
+                                detail: mac
+                                    ? "System Settings › Privacy & Security › Location Services. Only the Wi-Fi name is used."
+                                    : "Settings › \(brand.appName) › Location. Only the Wi-Fi name is used."
                             )
                         }
                         .buttonStyle(.plain)
@@ -495,7 +593,7 @@
                     }
                 }
                 if !savedNetworks.isEmpty {
-                    sectionHeader("SAVED ON THIS IPHONE").padding(.top, 6)
+                    sectionHeader(mac ? "SAVED ON THIS MAC" : "SAVED ON THIS IPHONE").padding(.top, 6)
                     group {
                         ForEach(Array(savedNetworks.enumerated()), id: \.element) { index, name in
                             if index > 0 { divider }
@@ -520,9 +618,9 @@
                 .frame(height: Self.headerHeight)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("\(context.prefix).nearbyHeader")
-                .padding(.top, landscape ? 0 : 6)
+                .padding(.top, side == nil ? 6 : 0)
                 group {
-                    let nearbyNames = found.filter { !savedNetworks.contains($0) && $0 != currentSSID }
+                    let nearbyNames = rows.nearby
                     ForEach(Array(nearbyNames.enumerated()), id: \.element) { index, name in
                         if index > 0 { divider }
                         networkRow(name, detail: hasPassword(name) ? "Password saved" : nil)
@@ -548,11 +646,72 @@
                         .accessibilityIdentifier("\(context.prefix).scanStatus")
                     }
                 }
-                if landscape {
-                    hint(context.networkHint).padding(.top, 4)
+                if side != nil {
+                    hint(networkHint).padding(.top, 4)
                 }
             }
-            return columns(side, spacing: 7, known, nearby)
+            // A Mac pairing a new camera has no camera link to scan with: its own, saved and
+            // nearby networks, and Other network.
+            return columns(
+                side, spacing: 7, known,
+                Group { if computerList { computerNearbySection(rows.nearby) } else { nearby } })
+        }
+
+        /// The networks a computer's own Wi-Fi sees, while it looks and once it found some.
+        @ViewBuilder private func computerNearbySection(_ names: [String]) -> some View {
+            if computerScanning || !names.isEmpty {
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(spacing: 8) {
+                        sectionLabel("NEARBY")
+                        if computerScanning { ProgressView().controlSize(.mini) }
+                        Spacer()
+                    }
+                    .frame(height: Self.headerHeight)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("\(context.prefix).nearbyHeader")
+                    .padding(.top, 6)
+                    group {
+                        ForEach(Array(names.enumerated()), id: \.element) { index, name in
+                            if index > 0 { divider }
+                            networkRow(name, detail: hasPassword(name) ? "Password saved" : nil)
+                        }
+                        if names.isEmpty {
+                            row(
+                                icon: nil, title: "Looking for networks nearby…", detail: nil,
+                                showsProgress: true, chevron: false
+                            )
+                            .accessibilityIdentifier("\(context.prefix).scanStatus")
+                        }
+                    }
+                }
+            }
+        }
+
+        /// Why an empty list is empty. A computer refused Location opens Settings from it.
+        @ViewBuilder private var emptyNote: some View {
+            let note = listLayout.emptyNote ?? ""
+            if mac, locationDenied {
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                } label: {
+                    hint(note).multilineTextAlignment(.leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("\(context.prefix).emptyNote")
+            } else {
+                hint(note).accessibilityIdentifier("\(context.prefix).emptyNote")
+            }
+        }
+
+        private var otherNetworkButton: some View {
+            Button {
+                otherName = ""
+                otherNetwork = true
+            } label: {
+                row(icon: .plus, title: "Other network…", detail: nil)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("\(context.prefix).otherNetwork")
         }
 
         private func networkRow(_ name: String, detail: String? = nil, detailColor: Color? = nil)
@@ -577,7 +736,8 @@
                     Text(ssid).font(MonitorTheme.font(16, weight: .semibold))
                     Text(
                         ssid == currentSSID
-                            ? "This iPhone’s current network" : "This iPhone joins it too"
+                            ? mac ? "This Mac’s current network" : "This iPhone’s current network"
+                            : mac ? "This Mac must be on it, by Wi-Fi or Ethernet" : "This iPhone joins it too"
                     )
                     .font(MonitorTheme.font(11.5)).foregroundStyle(MonitorTheme.muted)
                 }
@@ -609,7 +769,10 @@
                 if let note = StationNetworkSetupRules.passwordNote(password, secured: secured) {
                     hint(note).accessibilityIdentifier("\(context.prefix).passwordNote")
                 }
-                hint("Saved in this iPhone’s Keychain. Multiview can reuse it.")
+                hint(
+                    mac
+                        ? "Saved in this Mac’s Keychain. Every camera you add joins it."
+                        : "Saved in this iPhone’s Keychain. Multiview can reuse it.")
             }
             .task(id: ssid) {
                 let lookup = services.networkSecured ?? StationNetworkSecurity.currentNetwork(named:)
@@ -768,7 +931,8 @@
 
         /// Connect / Other network, pinned under the form above the safe area or keyboard.
         @ViewBuilder private func footer(_ page: Page, inset: CGFloat) -> some View {
-            if page != .choose {
+            // An empty list carries Other network as its first row instead.
+            if page != .choose, !(page == .networks && emptyList) {
                 footerAction(page)
                     .padding(.horizontal, inset)
                     .padding(.top, 8).padding(.bottom, 16)
@@ -778,14 +942,7 @@
         @ViewBuilder private func footerAction(_ page: Page) -> some View {
             switch page {
             case .networks:
-                Button {
-                    otherName = ""
-                    otherNetwork = true
-                } label: {
-                    row(icon: .plus, title: "Other network…", detail: nil).background(card)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("\(context.prefix).otherNetwork")
+                otherNetworkButton.background(card)
             case .password(let ssid):
                 let secured = security?.ssid == ssid ? security?.secured : nil
                 let valid =

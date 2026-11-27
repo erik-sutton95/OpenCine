@@ -128,6 +128,15 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   `:streaming` (socket, MediaCodec encoders, microphone, Keystore keys, device warnings and the
   publisher) depends on `:platform` and the Android framework only, never on UI, the native
   runtime, an integration or an app (`StreamingRulesTest`); pictures reach it as a surface source.
+- `OpenCineDesktopKit` (the desktop dock's portable rules: driver slots and their table, module
+  manifest and registry, dock and module messages) imports Foundation only, holds no mutable
+  global and names no app or manufacturer. `OpenCineVirtualCamera` (the virtual camera producer,
+  frame policy and the Catalyst module host) depends on `OpenCineDesktopKit` and Apple frameworks
+  only, never on UI, an integration or an app. `Desktop/` (the Mac dock app and the one camera
+  driver extension) links only these two products and names no camera or app: module identity
+  arrives from each module's manifest. Mac-only behavior in shared modules sits behind
+  `#if targetEnvironment(macCatalyst)` or an explicit host value; iOS defaults never change.
+  Design: [desktop spec](docs/superpowers/specs/2026-11-05-opencine-desktop-design.md).
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.

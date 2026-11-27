@@ -10,7 +10,7 @@ import os
 
 public typealias WatchPreviewPump = RelayPreviewReservations
 
-#if canImport(WatchConnectivity)
+#if canImport(WatchConnectivity) && !targetEnvironment(macCatalyst)
 private struct WatchNativePreview: @unchecked Sendable {
     let image: CIImage
     let source: CVPixelBuffer?

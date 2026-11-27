@@ -89,7 +89,7 @@
                         CameraPageGlyph(icon: .more).frame(
                             width: 15, height: 15
                         ).frame(width: 32, height: 44)
-                    }.accessibilityLabel("Pairing help and diagnostics")
+                    }.monitorMenuStyle().accessibilityLabel("Pairing help and diagnostics")
                 }
                 Group {
                     if portrait {

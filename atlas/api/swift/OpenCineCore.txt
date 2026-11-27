@@ -134,6 +134,9 @@ case FocusMode.single
 case Freshness.fresh
 case Freshness.stale
 case Freshness.unknown
+case HostDevice.iPad
+case HostDevice.iPhone
+case HostDevice.mac
 case ISOValue.auto
 case ISOValue.autoLimited(Swift.Int)
 case ISOValue.manual(Swift.Int)
@@ -284,6 +287,9 @@ enum ControlAuthority: Decodable, Encodable, Equatable, Hashable, Sendable
 enum DiscoveryMode: Equatable, Hashable, Sendable
 enum FocusMode: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum Freshness: Equatable, Hashable, Sendable
+enum HostDevice: Equatable, Hashable, Sendable
+enum HostInterfacePick
+enum HostInterfaces
 enum ISOValue: Decodable, Encodable, Equatable, Hashable, Sendable
 enum IdentityKind
 enum IdentityKind.CameraSession
@@ -323,6 +329,7 @@ enum SettingSemantics.Qualification: Decodable, Encodable, Equatable, Hashable, 
 enum SettingValue: Decodable, Encodable, Equatable, Hashable, Sendable
 enum ShutterValue: Decodable, Encodable, Equatable, Hashable, Sendable
 enum StationCommissionOutcome: Equatable, Hashable, Sendable
+enum StationCopy
 enum StationRestoreResult: Equatable, Sendable
 enum StationRoutes
 enum StationSubnet
@@ -438,6 +445,7 @@ init ConnectionStep(title: Swift.String, detail: Swift.String)
 init ControlLease(id: ControlLeaseID, expiresAt: MonotonicInstant?)
 init Counter(_: Swift.UInt64)<Kind>
 init HostClock(now: () -> MonotonicInstant, date: () -> Foundation.Date, sleep: (Swift.Duration) async throws -> Swift.Void)
+init HostInterface(name: Swift.String, ipv4: Swift.String, prefixLength: Swift.Int, isUp: Swift.Bool, carriesDefaultRoute: Swift.Bool)
 init Identifier(_: Foundation.UUID)<Kind>
 init IntegrationID(_: Swift.String)
 init IntegrationID(rawValue: Swift.String)
@@ -518,6 +526,10 @@ static func CameraSettingsPresetCodec.decode(_: Swift.String) -> [CameraSettings
 static func CameraSettingsPresetCodec.encode(_: [CameraSettingsPreset]) -> Swift.String
 static func CameraValuePin.reconcile(_: CameraValuePin<Value>?, reported: Value?, now: Foundation.TimeInterval, confirms: (Value, Value) -> Swift.Bool)<Value where Value : Swift.Equatable, Value : Swift.Sendable> -> Value?
 static func Counter.<(_: Counter<Kind>, _: Counter<Kind>)<Kind> -> Swift.Bool
+static func HostInterfacePick.interface(reaching: Swift.String, in: [HostInterface]) -> HostInterface?
+static func HostInterfacePick.stationInterfaces(_: [HostInterface]) -> [HostInterface]
+static func HostInterfacePick.sweepHosts(_: HostInterface) -> [Swift.String]
+static func HostInterfaces.current() -> [HostInterface]
 static func LegacyRecordHash.fnv1a(_: [Swift.String : Any]) -> Swift.String
 static func LocalVPNFilter.isTunnelInterface(_: Swift.String) -> Swift.Bool
 static func LocalVPNFilter.shouldHintOnLiveWait(vpnActive: Swift.Bool, hadVideo: Swift.Bool, secondsWithoutVideo: Foundation.TimeInterval) -> Swift.Bool
@@ -529,6 +541,7 @@ static func MonotonicInstant.-(_: MonotonicInstant, _: MonotonicInstant) -> Swif
 static func MonotonicInstant.<(_: MonotonicInstant, _: MonotonicInstant) -> Swift.Bool
 static func MonotonicInstant.now() -> MonotonicInstant
 static func Rational.frameRate(_: Swift.Double) -> Rational?
+static func StationCopy.notFoundOnNetwork(_: Swift.String, host: HostDevice) -> Swift.String
 static func StationRoutes.adding(_: SavedRoute, to: SavedCamera) -> SavedCamera
 static func StationRoutes.checkPasswordMessage(network: Swift.String) -> Swift.String
 static func StationRoutes.mayBeInStationRole(_: SavedCamera) -> Swift.Bool
@@ -553,6 +566,7 @@ static let MonitorConnectionPolicy.owning: MonitorConnectionPolicy
 static let MonotonicInstant.zero: MonotonicInstant
 static let PowerStatus.unknown: PowerStatus
 static let SavedCamerasDocument.currentVersion: Swift.Int
+static let StationCopy.noStationNetwork: Swift.String
 static let StationRoutes.moving: Swift.Set<RouteKind>
 static let TimecodeCapability.unknown: TimecodeCapability
 static let TimecodeCapability.unsupported: TimecodeCapability
@@ -592,6 +606,7 @@ struct ConnectionStep: Equatable, Hashable, Sendable
 struct ControlLease: Decodable, Encodable, Equatable, Hashable, Sendable
 struct Counter<Kind>: Comparable, CustomStringConvertible, Decodable, Encodable, Equatable, Hashable, Sendable
 struct HostClock: Sendable
+struct HostInterface: Equatable, Sendable
 struct Identifier<Kind>: CustomStringConvertible, Decodable, Encodable, Equatable, Hashable, Sendable
 struct IntegrationID: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 struct LegacyCamera: Equatable, Hashable, Sendable
@@ -778,6 +793,15 @@ var Counter.description: Swift.String
 var HostClock.date: () -> Foundation.Date
 var HostClock.now: () -> MonotonicInstant
 var HostClock.sleep: (Swift.Duration) async throws -> Swift.Void
+var HostDevice.isComputer: Swift.Bool
+var HostDevice.isLargeScreen: Swift.Bool
+var HostDevice.thisDevice: Swift.String
+var HostInterface.carriesDefaultRoute: Swift.Bool
+var HostInterface.ipv4: Swift.String
+var HostInterface.isUp: Swift.Bool
+var HostInterface.name: Swift.String
+var HostInterface.netmask: Swift.String
+var HostInterface.prefixLength: Swift.Int
 var Identifier.description: Swift.String
 var IntegrationPrompt.fallbackText: Swift.String
 var LegacyCamera.camera: SavedCamera

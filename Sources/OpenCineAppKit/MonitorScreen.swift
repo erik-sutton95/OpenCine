@@ -54,6 +54,13 @@
                         hidden: !presentation.pictureWaiting || !presentation.visible))
                     .allowsHitTesting(false)
 
+                if layout.chrome == .desktop, layout.status.y > 0 {
+                    // The window's title bar lies over this band: the theme background, so no black
+                    // bar shows above the status row.
+                    MonitorTheme.background.frame(width: layout.viewport.width, height: layout.status.y)
+                        .position(x: layout.viewport.width / 2, y: layout.status.y / 2).allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
                 if layout.portrait {
                     MonitorTheme.canvas.frame(width: layout.system.width, height: layout.system.height)
                         .position(x: layout.system.midX, y: layout.system.midY).allowsHitTesting(false)

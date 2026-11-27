@@ -182,6 +182,8 @@
                 guard self.onChange != nil, let window = self.window else { return }
                 let insets = window.safeAreaInsets
                 let topControlInset: CGFloat
+                // The iPadOS 26 window controls only: a Mac window keeps its buttons in its title
+                // bar, inside the safe area, so the Mac idiom stays off this path.
                 if #available(iOS 26.0, *), window.traitCollection.userInterfaceIdiom == .pad {
                     // Unlike ordinary safeAreaInsets, this region excludes
                     // the window controls that float over an app's top corner.

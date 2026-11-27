@@ -82,6 +82,8 @@
                 guard !interfaceLocked, dragOrigin == nil else { return }
                 onConfigure()
             }
+            // A Mac's right-click opens the false color options, as the long press does.
+            .monitorSecondaryClick(enabled: !interfaceLocked && dragOrigin == nil) { onConfigure() }
             .position(center)
             .opacity(MonitorScopePanelPlacement.isUsable(movement) ? 1 : 0)
             .allowsHitTesting(!interfaceLocked && MonitorScopePanelPlacement.isUsable(movement))

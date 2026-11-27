@@ -14,3 +14,7 @@ local.properties
 # Python bytecode from the scripts/sentry checks
 __pycache__/
 *.pyc
+
+Desktop/OpenCineDesktop.xcodeproj/
+Desktop/build/
+.superpowers/

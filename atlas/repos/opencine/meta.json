@@ -347,6 +347,16 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:system-hints-testing"
+    },
+    {
+      "name": "OpenCineDesktopKit",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineVirtualCamera",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
     }
   ],
   "layers": {
@@ -387,7 +397,11 @@
       ":streaming",
       ":relay",
       ":relay-runtime",
-      ":watch-runtime"
+      ":watch-runtime",
+      "OpenCineDesktopKit",
+      "OpenCineDesktopKitTests",
+      "OpenCineVirtualCamera",
+      "OpenCineVirtualCameraTests"
     ],
     "ui": [
       "MonitorPresentation",

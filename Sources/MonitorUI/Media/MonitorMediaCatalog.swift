@@ -307,6 +307,16 @@
                 onOpen: { action(.open(item.id)) }, onSelect: { action(.select(item.id)) },
                 onFavorite: { action(.favorite(item.id)) }, artworkAspect: aspect
             ) { thumbnail(item) }
+            // A Mac's right-click opens the cell's menu (MonitorMediaContextMenu); iPhone and iPad
+            // keep the hold that starts selecting.
+            .monitorMacContextMenu {
+                MonitorMediaContextMenuItems(
+                    menu: MonitorMediaContextMenu(
+                        item: item.id, favorite: item.favorite, permissions: item.permissions,
+                        selecting: selecting, selectedIDs: selectedIDs,
+                        selectedPermissions: permissions),
+                    action: action)
+            }
             // On the cell's own element, before the selection anchor joins it: after it, both
             // carried the identifier and a clip no longer resolved to one element.
             .accessibilityIdentifier("monitor.media.clip.\(item.id)")
@@ -354,6 +364,25 @@
                     in: RoundedRectangle(cornerRadius: 9))
             }
             .buttonStyle(MonitorButtonStyle()).accessibilityLabel(label)
+        }
+    }
+
+    /// The menu's entries as native menu items; a disabled entry shows what the source does not
+    /// allow, as the selection bar does.
+    private struct MonitorMediaContextMenuItems: View {
+        let menu: MonitorMediaContextMenu
+        let action: (MonitorMediaAction) -> Void
+
+        var body: some View {
+            ForEach(menu.entries) { entry in
+                if entry.destructive { Divider() }
+                Button(role: entry.destructive ? .destructive : nil) {
+                    entry.actions.forEach(action)
+                } label: {
+                    Text(entry.title)
+                }
+                .disabled(!entry.enabled)
+            }
         }
     }
 

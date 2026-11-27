@@ -40,8 +40,13 @@ import PackageDescription
 //   capture sheets, live chrome, gimbal views) builds on OpenCineCameraVocabulary, MonitorUI,
 //   MonitorPresentation, OpenCineAppKit, OpenCineAppKitApple, Core, Media and Motion only: never
 //   OpenCineDJI or another integration, an app or a third-party package.
+// - OpenCineDesktopKit (the desktop dock's portable rules: driver slots, module manifest and
+//   registry, dock and module messages) imports Foundation only and names no app or manufacturer.
+//   OpenCineVirtualCamera (the virtual camera producer, frame policy and the Catalyst module host)
+//   depends on OpenCineDesktopKit and Apple frameworks only: never UI, an integration or an app.
 //
-// Platforms: one list for the whole package. macOS is the host for `swift test` only; no macOS
+// Platforms: one list for the whole package. macOS is the host for `swift test` and for the
+// desktop dock and driver in Desktop/, which link only the two desktop products; no other macOS
 // app ships (former packages: Core/Multicam/DJI/Insta360 macOS 13, UI 12, Nikon and the harness
 // 14; everything builds at 13). iOS 17 and watchOS 10 are unchanged.
 let package = Package(
@@ -53,6 +58,8 @@ let package = Package(
         .library(name: "OpenCineMedia", targets: ["OpenCineMedia"]),
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
         .library(name: "OpenCineGyro", targets: ["OpenCineGyro"]),
+        .library(name: "OpenCineDesktopKit", targets: ["OpenCineDesktopKit"]),
+        .library(name: "OpenCineVirtualCamera", targets: ["OpenCineVirtualCamera"]),
         .library(name: "OpenCineGyroApple", targets: ["OpenCineGyroApple"]),
         .library(name: "OpenCineStreaming", targets: ["OpenCineStreaming"]),
         .library(name: "OpenCineStreamingApple", targets: ["OpenCineStreamingApple"]),
@@ -121,6 +128,14 @@ let package = Package(
         // Optional Frame.io delivery. No Core values genuinely help it, so it depends on nothing.
         .target(name: "OpenCineFrameIO"),
         .testTarget(name: "OpenCineFrameIOTests", dependencies: ["OpenCineFrameIO"]),
+        // The desktop dock's portable rules: driver slots, module manifest and registry, dock and
+        // module messages. Foundation only; names no manufacturer or app.
+        .target(name: "OpenCineDesktopKit"),
+        .testTarget(name: "OpenCineDesktopKitTests", dependencies: ["OpenCineDesktopKit"]),
+        // The virtual camera producer and frame policy, shared by the driver and every camera module.
+        // Apple frameworks plus OpenCineDesktopKit only; no UI, integration or app.
+        .target(name: "OpenCineVirtualCamera", dependencies: ["OpenCineDesktopKit"]),
+        .testTarget(name: "OpenCineVirtualCameraTests", dependencies: ["OpenCineVirtualCamera", "OpenCineDesktopKit"]),
         // Phone gyro capture for Gyroflow: take segmentation, GCSV, mount calibration, drift,
         // stabilization save/restore and log storage. Foundation only; names no app or manufacturer.
         .target(name: "OpenCineGyro"),
@@ -166,7 +181,7 @@ let package = Package(
         .target(
             name: "OpenCineWatch",
             dependencies: [
-                "OpenCineCore", "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS])),
+                "OpenCineCore", "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS, .macCatalyst])),
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]),
         // iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
