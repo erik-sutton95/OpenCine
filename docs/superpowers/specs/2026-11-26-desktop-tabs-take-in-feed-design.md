@@ -10,8 +10,13 @@ What the owner saw: the tab group sat in a tall system glass capsule, the select
 separate 8 pt rounded rectangle inside it (the radii did not match), and every tab had a grey dot
 that read like a list bullet.
 
-- The tab group's toolbar item is unbordered (`NSToolbarItem.isBordered = false`), so macOS 26
-  draws no glass capsule behind it. The notice item is unbordered too.
+- The tab group's toolbar item keeps the system's bordered style, so macOS 26 draws its glass
+  capsule behind the group, as for Media and Settings. It was unbordered
+  (`NSToolbarItem.isBordered = false`) for a day, and the tabs stopped taking clicks: on Mac
+  Catalyst an unbordered `NSUIViewToolbarItem` still draws, but no mouse event reaches its view.
+  The module logs show clicks dispatched to the tabs' own window in every run before that build
+  and in none after it, while AppKit's hit test still found the tabs' view; Command-1 to 3 kept
+  working. The notice item (its driver settings link) is bordered for the same reason.
 - The selected tab is one soft capsule (white at 11 % over the title bar) with full-brightness
   text. Other tabs are muted text with no fill, and a faint capsule (5 %) under the pointer.
 - The capsule is 28 pt high, a standard toolbar control, centred with the window buttons. Text is
