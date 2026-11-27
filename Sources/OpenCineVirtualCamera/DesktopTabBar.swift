@@ -36,8 +36,8 @@
         }
     }
 
-    /// The camera tabs in the module window's title bar, with no glass around the group (the item is
-    /// unbordered): the selected tab sits on one soft capsule, the others are muted text that takes a
+    /// The camera tabs in the module window's title bar, in the toolbar's glass (the item stays
+    /// bordered so it takes clicks): the selected tab sits on one soft capsule, the others are muted text that takes a
     /// faint capsule under the pointer. A status dot shows only for a live, connecting, failed or
     /// stopped module (`DockTab.statusDot`). Names come from the modules' manifests.
     @available(macCatalyst 17.0, *)
@@ -279,10 +279,11 @@
             host.sizingOptions = .intrinsicContentSize
             host.view.backgroundColor = .clear
             hosts[ObjectIdentifier(toolbar), default: []].append(host)
-            let item = NSUIViewToolbarItem(itemIdentifier: itemIdentifier, uiView: host.view)
-            // No glass capsule behind the tabs or the notice: they draw their own surfaces.
-            item.isBordered = false
-            return item
+            // Bordered (the system default), so the item sits in the toolbar's glass. An unbordered
+            // hosted item draws, but on Mac Catalyst no click reaches its view: from the build that
+            // made the tabs unbordered on, no mouse event was dispatched to the tabs' window at all,
+            // while every earlier build delivered them (spec 2026-11-26, section 1).
+            return NSUIViewToolbarItem(itemIdentifier: itemIdentifier, uiView: host.view)
         }
     }
 #endif
