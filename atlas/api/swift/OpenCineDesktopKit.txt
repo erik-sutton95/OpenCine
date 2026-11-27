@@ -49,6 +49,8 @@ enum LengthPrefixedJSON
 enum LengthPrefixedJSONError: Equatable, Error, Hashable, Sendable
 enum ModuleMessage: Decodable, Encodable, Equatable, Sendable
 enum ModuleStatus: Decodable, Encodable, Equatable, Sendable
+enum SelectedVirtualCamera
+enum VirtualCameraSelectionWire
 enum VirtualCameraSlotTableError: Equatable, Error, Sendable
 enum VirtualCameraSlotTableFile
 enum VirtualCameraSlotTableWire
@@ -76,6 +78,8 @@ init DockWindowCoordinator(selectedID: Swift.String?, frame: WindowFrame)
 init DockWindowCoordinator.Command(moduleID: Swift.String, message: DockMessage)
 init ModuleManifest(id: Swift.String, displayName: Swift.String, inputName: Swift.String, version: Swift.String, minimumDockVersion: Swift.String, bundleName: Swift.String)
 init ModuleRegistry(modulesDirectory: Foundation.URL, dockVersion: Swift.String)
+init VirtualCameraSelection(selectedModuleID: Swift.String?, table: VirtualCameraSlotTable)
+init VirtualCameraSelection(slot: VirtualCameraSlot?)
 init VirtualCameraSlot(number: Swift.Int)
 init VirtualCameraSlotTable()
 init VirtualCameraSlotTable.Assignment(slot: Swift.Int, moduleID: Swift.String, displayName: Swift.String)
@@ -99,6 +103,8 @@ static func DesktopKeyCommands.action(input: Swift.String, modifiers: DesktopMod
 static func DesktopKeyCommands.tabIndex(for: DesktopShortcut, selected: Swift.Int?, tabCount: Swift.Int) -> Swift.Int?
 static func LengthPrefixedJSON.decodeAll(_: Foundation.Data, maxMessageBytes: Swift.Int)<T where T : Swift.Decodable> throws -> [T]
 static func LengthPrefixedJSON.encode(_: T)<T where T : Swift.Encodable> throws -> Foundation.Data
+static func VirtualCameraSelectionWire.decode(_: Swift.String) -> VirtualCameraSelection?
+static func VirtualCameraSelectionWire.encode(_: VirtualCameraSelection) -> Swift.String
 static func VirtualCameraSlotTableFile.load(from: Foundation.URL) throws -> VirtualCameraSlotTable
 static func VirtualCameraSlotTableFile.save(_: VirtualCameraSlotTable, to: Foundation.URL) throws -> ()
 static func VirtualCameraSlotTableWire.decode(_: Swift.String) -> VirtualCameraSlotTable?
@@ -109,6 +115,12 @@ static let DesktopModifiers.control: DesktopModifiers
 static let DesktopModifiers.option: DesktopModifiers
 static let DesktopModifiers.shift: DesktopModifiers
 static let DockNotice.driverSettingsURL: Foundation.URL
+static let SelectedVirtualCamera.deviceUUID: Foundation.UUID
+static let SelectedVirtualCamera.displayName: Swift.String
+static let SelectedVirtualCamera.legacyDeviceID: Swift.String
+static let SelectedVirtualCamera.sourceStreamUUID: Foundation.UUID
+static let VirtualCameraSelectionWire.propertyName: Swift.String
+static let VirtualCameraSelectionWire.selector: Swift.String
 static let VirtualCameraSlot.all: [VirtualCameraSlot]
 static let VirtualCameraSlot.count: Swift.Int
 static let VirtualCameraSlotTable.currentVersion: Swift.Int
@@ -129,6 +141,7 @@ struct DockWindowCoordinator: Sendable
 struct InstalledModule: Equatable, Sendable
 struct ModuleManifest: Decodable, Encodable, Equatable, Sendable
 struct ModuleRegistry: Sendable
+struct VirtualCameraSelection: Equatable, Hashable, Sendable
 struct VirtualCameraSlot: Equatable, Hashable, Sendable
 struct VirtualCameraSlotTable.Assignment: Decodable, Encodable, Equatable, Sendable
 struct VirtualCameraSlotTable: Decodable, Encodable, Equatable, Sendable
@@ -153,6 +166,7 @@ var DockWindowCoordinator.Command.moduleID: Swift.String
 var DockWindowCoordinator.frame: WindowFrame
 var DockWindowCoordinator.needsFallbackWindow: Swift.Bool
 var DockWindowCoordinator.selectedID: Swift.String?
+var VirtualCameraSelection.slot: VirtualCameraSlot?
 var VirtualCameraSlot.deviceUUID: Foundation.UUID
 var VirtualCameraSlot.legacyDeviceID: Swift.String
 var VirtualCameraSlot.sinkStreamName: Swift.String
