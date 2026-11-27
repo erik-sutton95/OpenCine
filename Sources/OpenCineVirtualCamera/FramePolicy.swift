@@ -77,6 +77,16 @@ public final class FramePolicy<Frame: AnyObject> {
         return .frame(frame, repeated: repeated)
     }
 
+    /// What `output` would return now, for a second input showing this slot's picture: it counts
+    /// no delivery or repeat, so the slot's own input keeps its counters.
+    public func peek(now: UInt64) -> Output {
+        guard producer != nil else { return .slate(.feedOff) }
+        guard let frame = latest, let timestamp = latestTimestamp,
+            now <= timestamp || now - timestamp <= 500_000_000
+        else { return .slate(.noFeed) }
+        return .frame(frame, repeated: false)
+    }
+
     /// Uses the host clock while preventing timestamp reversal across sleep or format changes.
     public func outputTimestamp(now: UInt64) -> UInt64 {
         let value = lastOutputTime.map { max(now, $0 + 1) } ?? now

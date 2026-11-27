@@ -35,6 +35,10 @@ final class DockModel {
     /// When the owner clicked each tab not yet on screen, for the switch time in the log.
     @ObservationIgnored private var switchRequested: [String: ContinuousClock.Instant] = [:]
     @ObservationIgnored private var quitting = false
+    /// Which module owns which driver slot, as handed to the driver.
+    @ObservationIgnored private var slotTable = VirtualCameraSlotTable()
+    /// The selection last handed to the driver, which "OpenCine" shows.
+    @ObservationIgnored private var followedSelection: VirtualCameraSelection?
     @ObservationIgnored private var startCheckPending = false
     /// How long a launching module counts as on its way before the dock shows its own window.
     private static let startGrace: Duration = .seconds(10)
@@ -103,6 +107,7 @@ final class DockModel {
             problem = "The camera input table could not be saved: \(error.localizedDescription)"
         }
         modules = processes
+        slotTable = table
         let remembered = UserDefaults.standard.string(forKey: Self.selectedKey)
         coordinator = DockWindowCoordinator(
             selectedID: modules.first { $0.id == remembered }?.id ?? modules.first?.id,
@@ -115,9 +120,20 @@ final class DockModel {
         }
         driver.ensureInstalled()
         observeDriver()
-        DriverSlotTableChannel.keepDelivered(table)
+        DriverChannel.keepDelivered(table)
+        followSelection()
         for module in modules { module.start() }
         windowStateChanged()
+    }
+
+    /// Hands the driver the selected tab's slot whenever the selection changes, so the "OpenCine"
+    /// input shows that tab's camera.
+    private func followSelection() {
+        let selection = VirtualCameraSelection(
+            selectedModuleID: coordinator.selectedID, table: slotTable)
+        guard selection != followedSelection else { return }
+        followedSelection = selection
+        DriverChannel.follow(selection)
     }
 
     /// The owner chose a tab, in a module's tab bar or the dock's own window. A stopped module is
@@ -127,6 +143,7 @@ final class DockModel {
         if module.phase == .crashed || module.phase == .stopped { module.start() }
         UserDefaults.standard.set(id, forKey: Self.selectedKey)
         let commands = coordinator.select(id)
+        followSelection()
         // The tabs first, so no window comes in with the old selection drawn.
         refreshTabs()
         perform(commands)
@@ -188,6 +205,8 @@ final class DockModel {
             refreshTabs()
             perform(commands)
         }
+        // A module that becomes ready or stops can move the selection.
+        followSelection()
         windowStateChanged()
     }
 

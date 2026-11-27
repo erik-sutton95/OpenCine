@@ -78,6 +78,10 @@ asks first if any input is in use; quitting ends every module.
   mid-session, and a stable device shows a clear slate ("Pocket not connected") until the camera connects.
 - **[Call]** Output stays 1920x1080 BGRA at 30 or 60 fps as negotiated by the receiver. Smaller sources
   are fitted without cropping, with bars, and never presented as more than they are in the UI.
+- **[Call]** One more input, `OpenCine`, always shows the camera tab selected in the dock: the selected
+  module's clean feed, or that module's own slate while it is not live. A tab switch changes its picture
+  on the next frame on the same device, so a receiving app never reconnects. Its device ID
+  (`OpenCine.Camera.Selected`) never changes either.
 - The picture is the clean feed, with the selected LUT and no monitor overlays, as in October.
 - A per-module **Webcam output** switch, on by default in the dock.
 
@@ -160,6 +164,11 @@ provider.
   assigned slots, using the name from the table. Device IDs never change, so saved OBS scenes find them
   again. If live table updates prove unreliable, the extension reads the table at start, and a new module's
   input appears after the extension restarts, not through a reinstall.
+- **Selected input:** **[Call]** the driver holds every slot's latest picture, so `OpenCine` is routed
+  inside it: the dock writes the selected tab's slot number to a property on that input (as it hands
+  over the slot table), and the input reads the selected slot's frame policy on the driver's queue at
+  each frame. Frames never pass through the dock, and the per-camera inputs are unchanged. The dock
+  repeats the selection every 3 seconds, so a driver that restarts picks it up again.
 - **Identity limit, kept from October:** CMIO admission is the only producer check. It is not a
   cryptographic proof of who is feeding a sink. This is acceptable for a local webcam and is documented.
 - The driver is approved once, by the user, in System Settings.
