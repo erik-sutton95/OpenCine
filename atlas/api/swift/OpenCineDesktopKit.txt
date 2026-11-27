@@ -25,6 +25,12 @@ case DockTab.State.stopped
 case DockTab.StatusDot.connecting
 case DockTab.StatusDot.live
 case DockTab.StatusDot.problem
+case DriverHandoff.Route.freshProcess
+case DriverHandoff.Route.thisProcess
+case DriverUpdateCheck.Action.activateAgain
+case DriverUpdateCheck.Action.restartNeeded
+case DriverUpdateCheck.Action.started
+case DriverUpdateCheck.Action.wait
 case LengthPrefixedJSONError.messageTooLarge
 case ModuleMessage.closeRequested
 case ModuleMessage.ready(Swift.String)
@@ -45,6 +51,9 @@ enum DesktopTake: Equatable, Sendable
 enum DockMessage: Decodable, Encodable, Equatable, Hashable, Sendable
 enum DockTab.State: Decodable, Encodable, Equatable, Hashable, Sendable
 enum DockTab.StatusDot: Equatable, Hashable, Sendable
+enum DriverHandoff
+enum DriverHandoff.Route: Equatable, Hashable, Sendable
+enum DriverUpdateCheck.Action: Equatable, Hashable, Sendable
 enum LengthPrefixedJSON
 enum LengthPrefixedJSONError: Equatable, Error, Hashable, Sendable
 enum ModuleMessage: Decodable, Encodable, Equatable, Sendable
@@ -63,6 +72,7 @@ func DockWindowCoordinator.moduleStopped(_: Swift.String) -> [DockWindowCoordina
 func DockWindowCoordinator.select(_: Swift.String) -> [DockWindowCoordinator.Command]
 func DockWindowCoordinator.switchTimedOut(_: Swift.String) -> [DockWindowCoordinator.Command]
 func DockWindowCoordinator.windowMoved(by: Swift.String, to: WindowFrame) -> [DockWindowCoordinator.Command]
+func DriverUpdateCheck.looked(driverPresent: Swift.Bool) -> DriverUpdateCheck.Action
 func ModuleManifest.isCompatible(withDock: Swift.String) -> Swift.Bool
 func ModuleRegistry.installed() -> [InstalledModule]
 func VirtualCameraSlotTable.assign(moduleID: Swift.String, displayName: Swift.String) -> VirtualCameraSlot?
@@ -76,6 +86,7 @@ init DockNotice(text: Swift.String, opensDriverSettings: Swift.Bool)
 init DockTab(id: Swift.String, displayName: Swift.String, state: DockTab.State, bundleID: Swift.String?)
 init DockWindowCoordinator(selectedID: Swift.String?, frame: WindowFrame)
 init DockWindowCoordinator.Command(moduleID: Swift.String, message: DockMessage)
+init DriverUpdateCheck(lookupsPerAttempt: Swift.Int)
 init ModuleManifest(id: Swift.String, displayName: Swift.String, inputName: Swift.String, version: Swift.String, minimumDockVersion: Swift.String, bundleName: Swift.String)
 init ModuleRegistry(modulesDirectory: Foundation.URL, dockVersion: Swift.String)
 init VirtualCameraSelection(selectedModuleID: Swift.String?, table: VirtualCameraSlotTable)
@@ -85,6 +96,7 @@ init VirtualCameraSlotTable()
 init VirtualCameraSlotTable.Assignment(slot: Swift.Int, moduleID: Swift.String, displayName: Swift.String)
 init WindowFrame(x: Swift.Double, y: Swift.Double, width: Swift.Double, height: Swift.Double)
 let DesktopModifiers.rawValue: Swift.Int
+let DriverUpdateCheck.lookupsPerAttempt: Swift.Int
 let InstalledModule.bundleURL: Foundation.URL
 let InstalledModule.compatible: Swift.Bool
 let InstalledModule.manifest: ModuleManifest
@@ -101,6 +113,7 @@ let VirtualCameraSlotTable.Assignment.moduleID: Swift.String
 let VirtualCameraSlotTable.Assignment.slot: Swift.Int
 static func DesktopKeyCommands.action(input: Swift.String, modifiers: DesktopModifiers, textHasFocus: Swift.Bool, tabCount: Swift.Int) -> DesktopShortcut?
 static func DesktopKeyCommands.tabIndex(for: DesktopShortcut, selected: Swift.Int?, tabCount: Swift.Int) -> Swift.Int?
+static func DriverHandoff.deliver(driverEnabled: Swift.Bool, thisProcess: () -> Swift.Bool, freshProcess: () -> Swift.Bool) -> DriverHandoff.Route?
 static func LengthPrefixedJSON.decodeAll(_: Foundation.Data, maxMessageBytes: Swift.Int)<T where T : Swift.Decodable> throws -> [T]
 static func LengthPrefixedJSON.encode(_: T)<T where T : Swift.Encodable> throws -> Foundation.Data
 static func VirtualCameraSelectionWire.decode(_: Swift.String) -> VirtualCameraSelection?
@@ -138,6 +151,7 @@ struct DockNotice: Decodable, Encodable, Equatable, Hashable, Sendable
 struct DockTab: Decodable, Encodable, Equatable, Hashable, Sendable
 struct DockWindowCoordinator.Command: Equatable, Hashable, Sendable
 struct DockWindowCoordinator: Sendable
+struct DriverUpdateCheck: Equatable, Sendable
 struct InstalledModule: Equatable, Sendable
 struct ModuleManifest: Decodable, Encodable, Equatable, Sendable
 struct ModuleRegistry: Sendable
@@ -166,6 +180,7 @@ var DockWindowCoordinator.Command.moduleID: Swift.String
 var DockWindowCoordinator.frame: WindowFrame
 var DockWindowCoordinator.needsFallbackWindow: Swift.Bool
 var DockWindowCoordinator.selectedID: Swift.String?
+var DriverUpdateCheck.activatedAgain: Swift.Bool
 var VirtualCameraSelection.slot: VirtualCameraSlot?
 var VirtualCameraSlot.deviceUUID: Foundation.UUID
 var VirtualCameraSlot.legacyDeviceID: Swift.String
