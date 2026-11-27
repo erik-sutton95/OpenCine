@@ -14,6 +14,11 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var closing = false
 
     static func main() {
+        // A short-lived helper that reaches the driver when the running dock cannot see it.
+        let arguments = CommandLine.arguments.dropFirst()
+        if arguments.first == DriverChannel.helperFlag {
+            exit(DriverChannel.runAsHelper(Array(arguments.dropFirst())))
+        }
         let app = NSApplication.shared
         let delegate = OpenCineApp()
         app.delegate = delegate

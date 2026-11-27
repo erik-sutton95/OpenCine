@@ -169,6 +169,14 @@ provider.
   over the slot table), and the input reads the selected slot's frame policy on the driver's queue at
   each frame. Frames never pass through the dock, and the per-camera inputs are unchanged. The dock
   repeats the selection every 3 seconds, so a driver that restarts picks it up again.
+- **Driver arriving later:** a running dock's Core Media IO device list can stay stale after a driver
+  update, while any process started later sees the new inputs. When the dock cannot see the driver
+  but knows it is enabled, its own executable runs briefly as a helper (`--driver-handoff`) and hands
+  over the table and selection, so nothing waits for a relaunch.
+- **Driver updates:** macOS can finish an update whose new driver never starts (the old driver's launch
+  job was still being removed). After an update the dock looks for the inputs from a fresh process for
+  15 seconds, activates once more if they are missing, then asks for a restart. Deactivating first is
+  avoided because it can cost the owner's approval.
 - **Identity limit, kept from October:** CMIO admission is the only producer check. It is not a
   cryptographic proof of who is feeding a sink. This is acceptable for a local webcam and is documented.
 - The driver is approved once, by the user, in System Settings.

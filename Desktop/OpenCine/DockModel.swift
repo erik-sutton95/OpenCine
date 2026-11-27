@@ -246,6 +246,7 @@ final class DockModel {
 
     /// The driver state lives in its own observable; a change reaches the tab bars from here.
     private func observeDriver() {
+        DriverChannel.setDriverEnabled(driver.state == .installed)
         withObservationTracking {
             _ = driver.state
         } onChange: { [weak self] in
